@@ -1,0 +1,9 @@
+## TODO
+#- Document how to copy `user/config.example.toml` to `user/config.toml` in the 
+# README setup instructions.
+# User-specific settings for Codex Sessions Tool.
+[sessions]
+# Absolute path to the root directory containing Codex session logs.
+# Windows example: C:\\Users\\<user>\\.codex\\sessions
+# macOS/Linux example: /Users/<user>/.codex/sessions
+root = "/path/to/.codex/sessions"
