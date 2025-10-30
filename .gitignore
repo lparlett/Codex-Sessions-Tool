@@ -2,5 +2,6 @@
 user/config.toml
 
 # Ignore virtual environment directories
-venv/
+.venv/
+.vscode/
 env/
