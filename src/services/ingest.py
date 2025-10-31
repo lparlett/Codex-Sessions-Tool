@@ -69,6 +69,14 @@ class ErrorSeverity(Enum):
     CRITICAL = auto()
 
 
+class ProcessingErrorAction(Enum):
+    """Suggested handling strategy for a processing error."""
+
+    CONTINUE = auto()
+    RETRY = auto()
+    ABORT = auto()
+
+
 @dataclass
 class ProcessingError:
     """Structured error information for session processing."""
@@ -76,6 +84,7 @@ class ProcessingError:
     severity: ErrorSeverity
     code: str
     message: str
+    recommended_action: ProcessingErrorAction
     file_path: Path | None = None
     line_number: int | None = None
     context: dict[str, Any] | None = None
@@ -116,6 +125,7 @@ def serialize_processing_error(error: ProcessingError) -> dict[str, Any]:
         "severity": error.severity.name,
         "code": error.code,
         "message": error.message,
+        "recommended_action": error.recommended_action.name,
         "file_path": str(error.file_path) if error.file_path else None,
         "line_number": error.line_number,
         "context": context,
@@ -262,12 +272,17 @@ def _prepare_events(
     raw_events: Iterable[dict[str, Any]],
     session_file: Path,
     errors: list[ProcessingError] | None = None,
+    *,
+    batch_size: int = 1000,
 ) -> list[dict[str, Any]]:
-    """Validate and sanitize raw events before grouping."""
+    """Validate and sanitize raw events before grouping using batches."""
 
     prepared: list[dict[str, Any]] = []
     index = 0
-    for batch in process_events_in_batches(iter(raw_events)):
+    for batch in process_events_in_batches(
+        iter(raw_events),
+        batch_size=batch_size,
+    ):
         for event in batch:
             index += 1
             try:
@@ -280,6 +295,7 @@ def _prepare_events(
                     severity=ErrorSeverity.WARNING,
                     code="invalid_event",
                     message=str(exc),
+                    recommended_action=ProcessingErrorAction.CONTINUE,
                     file_path=session_file,
                     line_number=index,
                     context=context_data,
@@ -298,63 +314,75 @@ def _ingest_single_session(
     session_file: Path,
     *,
     verbose: bool = False,
+    batch_size: int = 1000,
 ) -> SessionSummary:
     """Internal helper to ingest one session using an existing connection."""
 
     if verbose:
         logger.info("Ingesting %s", session_file)
 
-    events = load_session_events(session_file)
-    errors: list[ProcessingError] = []
-    prepared_events = _prepare_events(events, session_file, errors)
-    prelude, groups = group_by_user_messages(prepared_events)
-
-    file_id = _ensure_file_row(conn, session_file)
-
-    summary: SessionSummary = {
-        "session_file": str(session_file),
-        "file_id": file_id,
-        "prompts": 0,
-        "token_messages": 0,
-        "turn_context_messages": 0,
-        "agent_reasoning_messages": 0,
-        "function_plan_messages": 0,
-        "function_calls": 0,
-        "errors": [],
-    }
-
-    insert_session(
-        SessionInsert(
-            conn=conn,
-            file_id=file_id,
-            prelude=prelude or [],
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        events = load_session_events(session_file)
+        errors: list[ProcessingError] = []
+        prepared_events = _prepare_events(
+            events,
+            session_file,
+            errors,
+            batch_size=batch_size,
         )
-    )
+        prelude, groups = group_by_user_messages(prepared_events)
 
-    for index, group in enumerate(groups, start=1):
-        prompt_event = group["user"]
-        prompt_insert = _build_prompt_insert(
-            conn,
-            file_id,
-            index,
-            prompt_event,
+        file_id = _ensure_file_row(conn, session_file)
+
+        summary: SessionSummary = {
+            "session_file": str(session_file),
+            "file_id": file_id,
+            "prompts": 0,
+            "token_messages": 0,
+            "turn_context_messages": 0,
+            "agent_reasoning_messages": 0,
+            "function_plan_messages": 0,
+            "function_calls": 0,
+            "errors": [],
+        }
+
+        insert_session(
+            SessionInsert(
+                conn=conn,
+                file_id=file_id,
+                prelude=prelude or [],
+            )
         )
-        prompt_id = insert_prompt(prompt_insert)
-        summary["prompts"] = summary["prompts"] + 1
-        counts = _process_events(conn, prompt_id, group["events"])
-        for key in (
-            "token_messages",
-            "turn_context_messages",
-            "agent_reasoning_messages",
-            "function_plan_messages",
-            "function_calls",
-        ):
-            summary[key] = summary[key] + counts.get(key, 0)
 
-    summary["errors"] = [
-        serialize_processing_error(error) for error in errors
-    ]
-    return summary
+        for index, group in enumerate(groups, start=1):
+            prompt_event = group["user"]
+            prompt_insert = _build_prompt_insert(
+                conn,
+                file_id,
+                index,
+                prompt_event,
+            )
+            prompt_id = insert_prompt(prompt_insert)
+            summary["prompts"] = summary["prompts"] + 1
+            counts = _process_events(conn, prompt_id, group["events"])
+            for key in (
+                "token_messages",
+                "turn_context_messages",
+                "agent_reasoning_messages",
+                "function_plan_messages",
+                "function_calls",
+            ):
+                summary[key] = summary[key] + counts.get(key, 0)
+
+        summary["errors"] = [
+            serialize_processing_error(error) for error in errors
+        ]
+        conn.commit()
+        return summary
+    except Exception:
+        conn.rollback()
+        raise
 
 
 def ingest_session_file(
@@ -362,6 +390,7 @@ def ingest_session_file(
     db_path: Path,
     *,
     verbose: bool = False,
+    batch_size: int = 1000,
 ) -> SessionSummary:
     """Parse a session log and persist structured data into SQLite."""
 
@@ -369,8 +398,12 @@ def ingest_session_file(
     ensure_schema(conn)
 
     try:
-        summary = _ingest_single_session(conn, session_file, verbose=verbose)
-        conn.commit()
+        summary = _ingest_single_session(
+            conn,
+            session_file,
+            verbose=verbose,
+            batch_size=batch_size,
+        )
         return summary
     finally:
         conn.close()
@@ -382,6 +415,7 @@ def ingest_sessions_in_directory(
     *,
     limit: int | None = None,
     verbose: bool = False,
+    batch_size: int = 1000,
 ) -> Iterator[SessionSummary]:
     """Ingest multiple session files beneath ``root``."""
 
@@ -400,8 +434,8 @@ def ingest_sessions_in_directory(
                 conn,
                 session_file,
                 verbose=verbose,
+                batch_size=batch_size,
             )
-            conn.commit()
             yield summary
 
         if not processed:

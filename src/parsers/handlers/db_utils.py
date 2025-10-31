@@ -33,8 +33,33 @@ DB_UTIL_EXPORTS: tuple[str, ...] = (
     "insert_function_plan",
     "insert_function_call",
     "update_function_call_output",
+    "SAFE_COLUMNS",
 )
 
+# Columns that accept sanitized user-supplied content; referenced when
+# documenting safeguards around SQL parameterization.
+SAFE_COLUMNS = frozenset(
+    (
+        "message",
+        "active_file",
+        "open_tabs",
+        "my_request",
+    )
+)
+
+
+def assert_safe_column(column: str) -> None:
+    """Ensure only vetted columns receive user-supplied payloads."""
+
+    if column not in SAFE_COLUMNS:
+        raise ValueError(f"Unsafe column binding attempted: {column}")
+
+
+def safe_value(column: str, value: Any) -> Any:
+    """Return value after verifying the destination column is permitted."""
+
+    assert_safe_column(column)
+    return value
 
 def json_dumps(data: Any) -> str:
     """Serialize payloads to JSON without forcing ASCII."""
@@ -315,10 +340,10 @@ def insert_prompt(context: PromptInsert) -> int:
             context.file_id,
             context.prompt_index,
             context.timestamp,
-            context.message,
-            active_file,
-            open_tabs,
-            my_request,
+            safe_value("message", context.message),
+            safe_value("active_file", active_file),
+            safe_value("open_tabs", open_tabs),
+            safe_value("my_request", my_request),
             json_dumps(context.raw),
         ),
     )
@@ -459,5 +484,27 @@ def update_function_call_output(context: FunctionCallOutputUpdate) -> None:
         ),
     )
 
-
-__all__ = list(DB_UTIL_EXPORTS)
+# Update this tuple when adding/removing exports above.
+__all__ = (
+    "json_dumps",
+    "extract_session_details",
+    "extract_token_fields",
+    "extract_turn_context",
+    "get_reasoning_text",
+    "parse_prompt_message",
+    "SessionInsert",
+    "PromptInsert",
+    "EventInsert",
+    "AgentReasoningInsert",
+    "FunctionCallInsert",
+    "FunctionCallOutputUpdate",
+    "insert_session",
+    "insert_prompt",
+    "insert_token",
+    "insert_turn_context",
+    "insert_agent_reasoning",
+    "insert_function_plan",
+    "insert_function_call",
+    "update_function_call_output",
+    "SAFE_COLUMNS",
+)

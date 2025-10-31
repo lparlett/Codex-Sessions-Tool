@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codex-sessions-tool"
+version = "0.1.0"
+requires-python = ">=3.12"
+description = "Transparency tooling for Codex session logs."
+readme = "README.md"
+authors = [{name = "Codex with Lauren Parlett"}]
+license = {text = "MIT"}
+
+[project.dependencies]
+tomli = {version = ">=2.0.1", python = "<3.11"}
+
+[project.optional-dependencies]
+test = ["pytest>=7.0", "pytest-cov"]

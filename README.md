@@ -1,4 +1,4 @@
-# Codex Sessions Tool
+﻿# Codex Sessions Tool
 <!-- markdownlint-disable MD042 -->
 [![Status](https://img.shields.io/badge/status-experimental-blueviolet)](#)
 [![Version](https://img.shields.io/badge/version-0.1.0--dev-orange)](#)
@@ -46,6 +46,9 @@ The goal is a workflow where AI-assisted coding can be audited, explained, and o
    # edit user/config.toml to point at your Codex sessions directory
    ```
 
+   Optional tuning: set `[ingest].batch_size` in `user/config.toml` if you want a
+   larger or smaller event batch during ingest (default is 1000).
+
 2. **Ingest a sample**
 
    ```bash
@@ -79,6 +82,7 @@ Beyond v1.0.0 we're targeting tagging, audit trails, API integrations, VS Code e
 
 ## Operational assumptions
 
+- **Architecture** - Components are wired manually; no dependency injection framework is in place yet. Larger deployments should plan for DI or service registries before extending the tool.
 - **Session paths** - Ingest expects Codex logs under `~/.codex/sessions/<year>/<month>/<day>/file.jsonl` (or the Windows equivalent). Symlinks and junctions must preserve this structure and point to readable directories; atypical mount points are not traversed automatically.
 - **Memory profile** - JSON payloads are read as-is with no max size enforcement. Very large sessions can exhaust memory; split oversized logs before ingesting or ingest them incrementally.
 - **Concurrency** - SQLite writes run in a single process and rely on SQLite's default locking. Running multiple ingests against the same database concurrently is unsupported and may deadlock.

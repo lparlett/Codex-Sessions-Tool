@@ -7,3 +7,7 @@
 # Windows example: C:\\Users\\<user>\\.codex\\sessions
 # macOS/Linux example: /Users/<user>/.codex/sessions
 root = "/path/to/.codex/sessions"
+
+[ingest]
+# Optional: override default event batch size (default: 1000)
+batch_size = 1000

@@ -30,6 +30,7 @@ class SessionsConfig:
     """User-defined settings for locating Codex session logs."""
 
     sessions_root: Path
+    ingest_batch_size: int = 1000
 
 
 def load_config(config_path: Path | None = None) -> SessionsConfig:
@@ -62,4 +63,15 @@ def load_config(config_path: Path | None = None) -> SessionsConfig:
     if not root.is_dir():
         raise ConfigError(f"Configured sessions root is not a directory: {root}")
 
-    return SessionsConfig(sessions_root=root)
+    ingest_config = data.get("ingest", {})
+    batch_size = 1000
+    if isinstance(ingest_config, dict):
+        override = ingest_config.get("batch_size")
+        if override is not None:
+            if not isinstance(override, int) or override <= 0:
+                raise ConfigError(
+                    "ingest.batch_size must be a positive integer when provided."
+                )
+            batch_size = override
+
+    return SessionsConfig(sessions_root=root, ingest_batch_size=batch_size)
