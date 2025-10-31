@@ -10,6 +10,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict
 
+
+EVENT_HANDLER_EXPORTS: tuple[str, ...] = (
+    "EventContext",
+    "EventHandlerDeps",
+    "FunctionCallTracker",
+    "handle_event_msg",
+    "handle_turn_context_event",
+    "handle_response_item_event",
+)
+
 from .db_utils import (
     AgentReasoningInsert,
     EventInsert,
@@ -250,3 +260,6 @@ def _register_function_call(
     tracker.register(call_id, row_id)
     event_context.counts["function_calls"] += 1
     return row_id
+
+
+__all__ = list(EVENT_HANDLER_EXPORTS)

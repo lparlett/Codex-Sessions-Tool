@@ -9,7 +9,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-import tomllib
+import sys
+
+if sys.version_info >= (3, 11):
+    import tomllib
+    _toml_loads = tomllib.loads
+    _TOMLDecodeError = tomllib.TOMLDecodeError
+else:
+    import tomli
+    _toml_loads = tomli.loads
+    _TOMLDecodeError = tomli.TOMLDecodeError
 
 
 class ConfigError(RuntimeError):
@@ -34,8 +43,8 @@ def load_config(config_path: Path | None = None) -> SessionsConfig:
         )
 
     try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except tomllib.TOMLDecodeError as exc:
+        data = _toml_loads(path.read_text(encoding="utf-8"))
+    except _TOMLDecodeError as exc:
         raise ConfigError(f"Config at {path} is not valid TOML: {exc}") from exc
 
     sessions = data.get("sessions")

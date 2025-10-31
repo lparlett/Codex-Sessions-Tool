@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 
-__all__ = [
+DB_UTIL_EXPORTS: tuple[str, ...] = (
     "json_dumps",
     "extract_session_details",
     "extract_token_fields",
@@ -33,7 +33,7 @@ __all__ = [
     "insert_function_plan",
     "insert_function_call",
     "update_function_call_output",
-]
+)
 
 
 def json_dumps(data: Any) -> str:
@@ -458,3 +458,6 @@ def update_function_call_output(context: FunctionCallOutputUpdate) -> None:
             context.row_id,
         ),
     )
+
+
+__all__ = list(DB_UTIL_EXPORTS)

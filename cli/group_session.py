@@ -68,28 +68,27 @@ def _describe_payload(event_type: str, payload_type: str | None, payload: dict) 
 def _describe_event_msg(payload_type: str | None, payload: dict) -> list[str]:
     """Describe payloads attached to event_msg entries, such as reasoning or messages."""
 
+    result = []
+
     if payload_type == "agent_reasoning":
         text = payload.get("text")
         if isinstance(text, str) and text.strip():
-            return [indent("reasoning: " + shorten(text, 500), "    ")]
-        return []
+            result.append(indent("reasoning: " + shorten(text, 500), "    "))
 
-    if payload_type == "token_count":
-        return _describe_token_count(payload)
+    elif payload_type == "token_count":
+        result.extend(_describe_token_count(payload))
 
-    if payload_type == "agent_message":
+    elif payload_type == "agent_message":
         message = payload.get("message")
         if isinstance(message, str) and message.strip():
-            return [indent(shorten(message, 500), "    message: ")]
-        return []
+            result.append(indent(shorten(message, 500), "    message: "))
 
-    if payload_type == "turn_aborted":
+    elif payload_type == "turn_aborted":
         reason = payload.get("reason")
         if isinstance(reason, str):
-            return [indent(f"reason: {reason}", "    ")]
-        return []
+            result.append(indent(f"reason: {reason}", "    "))
 
-    return []
+    return result
 
 
 def _describe_token_count(payload: dict) -> list[str]:

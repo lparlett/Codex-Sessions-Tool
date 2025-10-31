@@ -8,9 +8,10 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 from itertools import islice
 from pathlib import Path
-from typing import Iterable, Iterator, TypedDict
+from typing import Any, Iterable, Iterator, TypedDict
 
 from src.parsers.session_parser import (
     SessionDiscoveryError,
@@ -79,20 +80,77 @@ def _ensure_file_row(conn, session_file: Path) -> int:
     return cursor.lastrowid
 
 
+def _build_prompt_insert(
+    conn,
+    file_id: int,
+    prompt_index: int,
+    prompt_event: dict[str, Any],
+) -> PromptInsert:
+    """Create a PromptInsert payload from the raw user event."""
+
+    payload = prompt_event.get("payload")
+    message = ""
+    if isinstance(payload, dict):
+        message = payload.get("message", "") or ""
+    return PromptInsert(
+        conn=conn,
+        file_id=file_id,
+        prompt_index=prompt_index,
+        timestamp=prompt_event.get("timestamp"),
+        message=message,
+        raw=prompt_event,
+    )
+
+
+@dataclass
+class EventProcessor:
+    """Encapsulate per-prompt event processing to limit local variables."""
+
+    deps: EventHandlerDeps
+    conn: Any
+    prompt_id: int
+    counts: dict[str, int] = field(
+        default_factory=lambda: {
+            "token_messages": 0,
+            "turn_context_messages": 0,
+            "agent_reasoning_messages": 0,
+            "function_plan_messages": 0,
+            "function_calls": 0,
+        }
+    )
+    tracker: FunctionCallTracker = field(default_factory=FunctionCallTracker)
+
+    def process(self, events: Iterable[dict]) -> dict[str, int]:
+        """Process all events for the current prompt."""
+
+        for event in events:
+            payload = event.get("payload")
+            if not isinstance(payload, dict):
+                continue
+            event_type = event.get("type")
+            context = EventContext(
+                conn=self.conn,
+                prompt_id=self.prompt_id,
+                timestamp=event.get("timestamp"),
+                payload=payload,
+                raw_event=event,
+                counts=self.counts,
+            )
+            if event_type == "event_msg":
+                handle_event_msg(self.deps, context)
+            elif event_type == "turn_context":
+                handle_turn_context_event(self.deps, context)
+            elif event_type == "response_item":
+                handle_response_item_event(self.deps, context, self.tracker)
+        return self.counts
+
+
 def _process_events(
     conn,
     prompt_id: int,
     events: Iterable[dict],
 ) -> dict[str, int]:
     """Process events for a prompt and populate child tables."""
-
-    counts = {
-        "token_messages": 0,
-        "turn_context_messages": 0,
-        "agent_reasoning_messages": 0,
-        "function_plan_messages": 0,
-        "function_calls": 0,
-    }
 
     deps = EventHandlerDeps(
         insert_token=insert_token,
@@ -102,36 +160,8 @@ def _process_events(
         insert_function_call=insert_function_call,
         update_function_call_output=update_function_call_output,
     )
-    tracker = FunctionCallTracker()
-
-    for event in events:
-        payload = event.get("payload")
-        if not isinstance(payload, dict):
-            continue
-
-        event_type = event.get("type")
-        timestamp = event.get("timestamp")
-        event_context = EventContext(
-            conn=conn,
-            prompt_id=prompt_id,
-            timestamp=timestamp,
-            payload=payload,
-            raw_event=event,
-            counts=counts,
-        )
-
-        if event_type == "event_msg":
-            handle_event_msg(deps, event_context)
-        elif event_type == "turn_context":
-            handle_turn_context_event(deps, event_context)
-        elif event_type == "response_item":
-            handle_response_item_event(
-                deps,
-                event_context,
-                tracker,
-            )
-
-    return counts
+    processor = EventProcessor(deps=deps, conn=conn, prompt_id=prompt_id)
+    return processor.process(events)
 
 
 def _ingest_single_session(
@@ -171,23 +201,13 @@ def _ingest_single_session(
 
     for index, group in enumerate(groups, start=1):
         prompt_event = group["user"]
-        prompt_payload = prompt_event.get("payload", {})
-        message = (
-            prompt_payload.get("message", "")
-            if isinstance(prompt_payload, dict)
-            else ""
+        prompt_insert = _build_prompt_insert(
+            conn,
+            file_id,
+            index,
+            prompt_event,
         )
-        timestamp = prompt_event.get("timestamp")
-        prompt_id = insert_prompt(
-            PromptInsert(
-                conn=conn,
-                file_id=file_id,
-                prompt_index=index,
-                timestamp=timestamp,
-                message=message,
-                raw=prompt_event,
-            )
-        )
+        prompt_id = insert_prompt(prompt_insert)
         summary["prompts"] = summary["prompts"] + 1
         counts = _process_events(conn, prompt_id, group["events"])
         for key in (
