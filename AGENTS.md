@@ -26,6 +26,8 @@ src/                 # Core implementation
   services/          # Shared utilities (I/O, filtering, summarization)
 tests/               # Pytest suites
   fixtures/          # Synthetic and sanitized samples, golden outputs
+user/                # User settings and configuration
+
 ```
 
 Input (Codex session logs) comes from a user-supplied path. The tool reads but does not store raw logs without explicit consent.

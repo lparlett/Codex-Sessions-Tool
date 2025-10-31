@@ -39,81 +39,127 @@ def describe_event(event: dict) -> str:
     payload_type = payload.get("type") if isinstance(payload, dict) else None
 
     summary_lines: list[str] = []
-
-    summary = f"{event_type}"
+    header = f"{event_type}"
     if payload_type:
-        summary += f" ({payload_type})"
-    summary += f" @ {timestamp}"
-    summary_lines.append(summary)
+        header += f" ({payload_type})"
+    header += f" @ {timestamp}"
+    summary_lines.append(header)
 
-    if not isinstance(payload, dict):
-        return "\n".join(summary_lines)
-
-    if event_type == "event_msg" and payload_type == "agent_reasoning":
-        text = payload.get("text")
-        if isinstance(text, str) and text.strip():
-            summary_lines.append(indent("reasoning: " + shorten(text, 500), "    "))
-    elif event_type == "event_msg" and payload_type == "token_count":
-        rate_limits = payload.get("rate_limits", {})
-        if isinstance(rate_limits, dict):
-            for label in ("primary", "secondary"):
-                data = rate_limits.get(label)
-                if isinstance(data, dict):
-                    used_percent = data.get("used_percent")
-                    window_minutes = data.get("window_minutes")
-                    resets = data.get("resets_at") or data.get("resets_in_seconds")
-                    detail = f"{label}: {used_percent}% used of {window_minutes} min window"
-                    if resets is not None:
-                        detail += f", resets {resets}"
-                    summary_lines.append(indent(detail, "    "))
-    elif event_type == "event_msg" and payload_type == "agent_message":
-        message = payload.get("message")
-        if isinstance(message, str) and message.strip():
-            summary_lines.append(indent(shorten(message, 500), "    message: "))
-    elif event_type == "response_item":
-        subtype = payload_type
-        if subtype == "reasoning":
-            summary_texts = payload.get("summary")
-            if isinstance(summary_texts, list) and summary_texts:
-                text_entry = summary_texts[0]
-                text = text_entry.get("text") if isinstance(text_entry, dict) else None
-                if isinstance(text, str):
-                    summary_lines.append(indent("summary: " + shorten(text, 500), "    "))
-        if subtype == "message":
-            content = payload.get("content")
-            if isinstance(content, list):
-                texts = [
-                    item.get("text")
-                    for item in content
-                    if isinstance(item, dict) and isinstance(item.get("text"), str)
-                ]
-                if texts:
-                    summary_lines.append(indent(shorten(" ".join(texts), 500), "    message: "))
-        if subtype == "function_call":
-            name = payload.get("name")
-            arguments = payload.get("arguments")
-            if name:
-                summary_lines.append(indent(f"function: {name}", "    "))
-            if isinstance(arguments, str) and arguments.strip():
-                summary_lines.append(indent("args: " + shorten(arguments, 500), "    "))
-        if subtype == "function_call_output":
-            output = payload.get("output")
-            if isinstance(output, str):
-                summary_lines.append(indent("output: " + shorten(output, 500), "    "))
-    elif payload_type == "turn_context":
-        cwd = payload.get("cwd")
-        if isinstance(cwd, str):
-            summary_lines.append(indent(f"cwd: {cwd}", "    "))
-    elif event_type == "event_msg" and payload_type == "turn_aborted":
-        reason = payload.get("reason")
-        if isinstance(reason, str):
-            summary_lines.append(indent(f"reason: {reason}", "    "))
-    elif event_type == "turn_context":
-        cwd = payload.get("cwd")
-        if isinstance(cwd, str):
-            summary_lines.append(indent(f"cwd: {cwd}", "    "))
+    if isinstance(payload, dict):
+        summary_lines.extend(_describe_payload(event_type, payload_type, payload))
 
     return "\n".join(summary_lines)
+
+
+def _describe_payload(event_type: str, payload_type: str | None, payload: dict) -> list[str]:
+    """Route payload description to the appropriate helper."""
+
+    if event_type == "event_msg":
+        return _describe_event_msg(payload_type, payload)
+    if event_type == "response_item":
+        return _describe_response_item(payload_type, payload)
+    if event_type == "turn_context":
+        return _describe_turn_context(payload)
+    if payload_type == "turn_context":
+        return _describe_turn_context(payload)
+    return []
+
+
+def _describe_event_msg(payload_type: str | None, payload: dict) -> list[str]:
+    """Describe payloads attached to event_msg entries, such as reasoning or messages."""
+
+    if payload_type == "agent_reasoning":
+        text = payload.get("text")
+        if isinstance(text, str) and text.strip():
+            return [indent("reasoning: " + shorten(text, 500), "    ")]
+        return []
+
+    if payload_type == "token_count":
+        return _describe_token_count(payload)
+
+    if payload_type == "agent_message":
+        message = payload.get("message")
+        if isinstance(message, str) and message.strip():
+            return [indent(shorten(message, 500), "    message: ")]
+        return []
+
+    if payload_type == "turn_aborted":
+        reason = payload.get("reason")
+        if isinstance(reason, str):
+            return [indent(f"reason: {reason}", "    ")]
+        return []
+
+    return []
+
+
+def _describe_token_count(payload: dict) -> list[str]:
+    """Render token utilization information for token_count payloads."""
+
+    lines: list[str] = []
+    rate_limits = payload.get("rate_limits", {})
+    if not isinstance(rate_limits, dict):
+        return lines
+    for label in ("primary", "secondary"):
+        data = rate_limits.get(label)
+        if not isinstance(data, dict):
+            continue
+        used_percent = data.get("used_percent")
+        window_minutes = data.get("window_minutes")
+        resets = data.get("resets_at") or data.get("resets_in_seconds")
+        detail = f"{label}: {used_percent}% used of {window_minutes} min window"
+        if resets is not None:
+            detail += f", resets {resets}"
+        lines.append(indent(detail, "    "))
+    return lines
+
+
+def _describe_response_item(payload_type: str | None, payload: dict) -> list[str]:
+    """Describe response_item payload contents (messages, function calls, outputs)."""
+
+    lines: list[str] = []
+    if payload_type == "reasoning":
+        summary_texts = payload.get("summary")
+        if isinstance(summary_texts, list) and summary_texts:
+            text_entry = summary_texts[0]
+            text = text_entry.get("text") if isinstance(text_entry, dict) else None
+            if isinstance(text, str):
+                lines.append(indent("summary: " + shorten(text, 500), "    "))
+
+    if payload_type == "message":
+        content = payload.get("content")
+        if isinstance(content, list):
+            texts = [
+                str(item.get("text"))
+                for item in content
+                if isinstance(item, dict) and isinstance(item.get("text"), str)
+            ]
+            if texts:
+                joined_text = " ".join(texts)
+                lines.append(indent(shorten(joined_text, 500), "    message: "))
+
+    if payload_type == "function_call":
+        name = payload.get("name")
+        arguments = payload.get("arguments")
+        if name:
+            lines.append(indent(f"function: {name}", "    "))
+        if isinstance(arguments, str) and arguments.strip():
+            lines.append(indent("args: " + shorten(arguments, 500), "    "))
+
+    if payload_type == "function_call_output":
+        output = payload.get("output")
+        if isinstance(output, str):
+            lines.append(indent("output: " + shorten(output, 500), "    "))
+
+    return lines
+
+
+def _describe_turn_context(payload: dict) -> list[str]:
+    """Render turn context metadata for display."""
+
+    cwd = payload.get("cwd")
+    if isinstance(cwd, str):
+        return [indent(f"cwd: {cwd}", "    ")]
+    return []
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -142,83 +188,109 @@ def write_report(output_path: Path, lines: list[str]) -> None:
 def main() -> None:
     """Entry point for the grouping CLI."""
 
-    if hasattr(sys.stdout, "reconfigure"):
-        try:
-            sys.stdout.reconfigure(encoding="utf-8")
-        except ValueError:
-            # Some streams (like redirected output) may not support reconfigure.
-            pass
-
-    parser = build_parser()
-    args = parser.parse_args()
-    captured_output: list[str] = []
+    _reconfigure_stdout()
+    args = build_parser().parse_args()
 
     try:
-        config = load_config()
-    except ConfigError as err:
-        message = f"Configuration error: {err}"
+        session_file = _discover_session_file()
+    except (ConfigError, SessionDiscoveryError) as err:
+        message = f"Configuration error: {err}" if isinstance(err, ConfigError) else f"Session discovery error: {err}"
         print(message)
-        captured_output.append(message)
-        return
-
-    try:
-        session_file = find_first_session_file(config.sessions_root)
-    except SessionDiscoveryError as err:
-        message = f"Session discovery error: {err}"
-        print(message)
-        captured_output.append(message)
-        return
-
-    events = load_session_events(session_file)
-    prelude, groups = group_by_user_messages(events)
-
-    header = f"Session file: {session_file}"
-    print(header)
-    captured_output.append(header)
-
-    if prelude:
-        captured_output.append("")
-        captured_output.append("-- Session Prelude --")
-        print("\n-- Session Prelude --")
-        for event in prelude:
-            description = indent(describe_event(event), "  ")
-            print(description)
-            captured_output.append(description)
-
-    if not groups:
-        message = "\nNo user messages found in session."
-        print(message)
-        captured_output.append(message)
         if args.output:
-            write_report(args.output, captured_output)
+            write_report(args.output, [message])
         return
 
-    for index, group in enumerate(groups, start=1):
-        user_event = group["user"]
-        user_payload = user_event.get("payload", {})
-        prompt = user_payload.get("message", "").strip() if isinstance(user_payload, dict) else ""
-
-        title = f"\n== Prompt {index} @ {user_event.get('timestamp', '?')} =="
-        prompt_text = indent(shorten(prompt, limit=500) or "<empty prompt>", "  ")
-        print(title)
-        print(prompt_text)
-        captured_output.append(title)
-        captured_output.append(prompt_text)
-
-        if not group["events"]:
-            print("  (No subsequent events recorded.)")
-            captured_output.append("  (No subsequent events recorded.)")
-            continue
-
-        print("  -- Following events --")
-        captured_output.append("  -- Following events --")
-        for event in group["events"]:
-            description = indent(describe_event(event), "    ")
-            print(description)
-            captured_output.append(description)
+    captured_output = _render_session(session_file)
 
     if args.output:
         write_report(args.output, captured_output)
+
+
+def _reconfigure_stdout() -> None:
+    """Ensure stdout can emit UTF-8 characters."""
+
+    try:
+        reconfigure = getattr(sys.stdout, "reconfigure", None)
+        if callable(reconfigure):
+            reconfigure(encoding="utf-8")
+    except ValueError:
+        # Some streams (like redirected output) may not support reconfigure.
+        pass
+
+
+def _discover_session_file() -> Path:
+    """Load config and locate the first available session file."""
+
+    config = load_config()
+    return find_first_session_file(config.sessions_root)
+
+
+def _render_session(session_file: Path) -> list[str]:
+    """Print and capture the grouped session output."""
+
+    events = load_session_events(session_file)
+    prelude, groups = group_by_user_messages(events)
+    captured: list[str] = []
+
+    _emit(f"Session file: {session_file}", captured)
+    _render_prelude(prelude, captured)
+    _render_groups(groups, captured)
+
+    return captured
+
+
+def _render_prelude(prelude: list[dict], captured: list[str]) -> None:
+    """Render prelude events that occur before the first user prompt."""
+
+    if not prelude:
+        return
+
+    _emit("", captured)
+    _emit("-- Session Prelude --", captured)
+    for event in prelude:
+        _emit(indent(describe_event(event), "  "), captured)
+
+
+def _render_groups(groups: list[dict], captured: list[str]) -> None:
+    """Render all prompt groups or emit a notice when none are present."""
+
+    if not groups:
+        _emit("\nNo user messages found in session.", captured)
+        return
+
+    for index, group in enumerate(groups, start=1):
+        _render_prompt_group(index, group, captured)
+
+
+def _render_prompt_group(index: int, group: dict, captured: list[str]) -> None:
+    """Render a single prompt group and its subsequent events."""
+
+    user_event = group.get("user", {})
+    user_payload = user_event.get("payload", {}) if isinstance(user_event, dict) else {}
+    prompt_message = user_payload.get("message", "") if isinstance(user_payload, dict) else ""
+    prompt = prompt_message.strip()
+
+    title = f"\n== Prompt {index} @ {user_event.get('timestamp', '?')} =="
+    prompt_text = indent(shorten(prompt, limit=500) or "<empty prompt>", "  ")
+
+    _emit(title, captured)
+    _emit(prompt_text, captured)
+
+    events = group.get("events", [])
+    if not events:
+        _emit("  (No subsequent events recorded.)", captured)
+        return
+
+    _emit("  -- Following events --", captured)
+    for event in events:
+        _emit(indent(describe_event(event), "    "), captured)
+
+
+def _emit(line: str, captured: list[str]) -> None:
+    """Print a line and append it to the captured output buffer."""
+
+    print(line)
+    captured.append(line)
 
 
 if __name__ == "__main__":
