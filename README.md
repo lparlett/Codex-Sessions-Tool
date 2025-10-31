@@ -73,13 +73,25 @@ Refer to [ROADMAP.md](ROADMAP.md) for the full plan. Highlights for v1.0.0:
 - Markdown/CSV transparency reports filtered by repo, date, or session.
 - Pipx-friendly packaging and documentation.
 
-Beyond v1.0.0 we’re targeting tagging, audit trails, API integrations, VS Code extensions, and compliance-ready exports.
+Beyond v1.0.0 we're targeting tagging, audit trails, API integrations, VS Code extensions, and compliance-ready exports.
+
+---
+
+## Operational assumptions
+
+- **Session paths** - Ingest expects Codex logs under `~/.codex/sessions/<year>/<month>/<day>/file.jsonl` (or the Windows equivalent). Symlinks and junctions must preserve this structure and point to readable directories; atypical mount points are not traversed automatically.
+- **Memory profile** - JSON payloads are read as-is with no max size enforcement. Very large sessions can exhaust memory; split oversized logs before ingesting or ingest them incrementally.
+- **Concurrency** - SQLite writes run in a single process and rely on SQLite's default locking. Running multiple ingests against the same database concurrently is unsupported and may deadlock.
+- **Encoding** - All file I/O assumes UTF-8. Convert logs encoded differently before processing.
+- **Timestamps** - Session timestamps are stored verbatim. Downstream analytics should normalize timezones explicitly (e.g., convert to UTC) to avoid skew.
+
+These constraints will be revisited as part of resilience and scaling work.
 
 ---
 
 ## Contributing & ethos
 
-This is an “AI-assisted” project—experiments will happen—but the mandate is transparency:
+This is an "AI-assisted" project-experiments will happen-but the mandate is transparency:
 
 - Every commit notes AI assistance.
 - Raw logs remain user-owned; ingest only reads from configured paths.
