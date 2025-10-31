@@ -309,6 +309,34 @@ def _prepare_events(
     return prepared
 
 
+def _create_empty_summary(session_file: Path, file_id: int) -> SessionSummary:
+    """Create an empty summary dictionary for tracking ingestion stats."""
+    return {
+        "session_file": str(session_file),
+        "file_id": file_id,
+        "prompts": 0,
+        "token_messages": 0,
+        "turn_context_messages": 0,
+        "agent_reasoning_messages": 0,
+        "function_plan_messages": 0,
+        "function_calls": 0,
+        "errors": [],
+    }
+
+
+def _update_summary_counts(summary: SessionSummary, counts: dict) -> None:
+    """Update summary with counts from processed events."""
+    summary["prompts"] += 1
+    for key in (
+        "token_messages",
+        "turn_context_messages",
+        "agent_reasoning_messages",
+        "function_plan_messages",
+        "function_calls",
+    ):
+        summary[key] += counts.get(key, 0)
+
+
 def _ingest_single_session(
     conn,
     session_file: Path,
@@ -334,18 +362,7 @@ def _ingest_single_session(
         prelude, groups = group_by_user_messages(prepared_events)
 
         file_id = _ensure_file_row(conn, session_file)
-
-        summary: SessionSummary = {
-            "session_file": str(session_file),
-            "file_id": file_id,
-            "prompts": 0,
-            "token_messages": 0,
-            "turn_context_messages": 0,
-            "agent_reasoning_messages": 0,
-            "function_plan_messages": 0,
-            "function_calls": 0,
-            "errors": [],
-        }
+        summary = _create_empty_summary(session_file, file_id)
 
         insert_session(
             SessionInsert(
@@ -356,24 +373,15 @@ def _ingest_single_session(
         )
 
         for index, group in enumerate(groups, start=1):
-            prompt_event = group["user"]
             prompt_insert = _build_prompt_insert(
                 conn,
                 file_id,
                 index,
-                prompt_event,
+                group["user"],
             )
             prompt_id = insert_prompt(prompt_insert)
-            summary["prompts"] = summary["prompts"] + 1
             counts = _process_events(conn, prompt_id, group["events"])
-            for key in (
-                "token_messages",
-                "turn_context_messages",
-                "agent_reasoning_messages",
-                "function_plan_messages",
-                "function_calls",
-            ):
-                summary[key] = summary[key] + counts.get(key, 0)
+            _update_summary_counts(summary, counts)
 
         summary["errors"] = [
             serialize_processing_error(error) for error in errors

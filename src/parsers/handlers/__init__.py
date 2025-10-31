@@ -11,6 +11,7 @@ from .db_utils import (
     FunctionCallInsert,
     FunctionCallOutputUpdate,
     PromptInsert,
+    SAFE_COLUMNS,  # Explicitly import SAFE_COLUMNS
     SessionInsert,
     extract_session_details,
     extract_token_fields,
@@ -38,5 +39,35 @@ from .event_handlers import (
 )
 from .event_handlers import EVENT_HANDLER_EXPORTS
 
-PARSERS_HANDLER_EXPORTS = DB_UTIL_EXPORTS + EVENT_HANDLER_EXPORTS
-__all__ = list(PARSERS_HANDLER_EXPORTS)
+# Explicitly list all exports for static type checking
+__all__ = [
+    # DB Utilities
+    "AgentReasoningInsert",
+    "EventInsert", 
+    "FunctionCallInsert",
+    "FunctionCallOutputUpdate",
+    "PromptInsert",
+    "SAFE_COLUMNS",
+    "SessionInsert",
+    "extract_session_details",
+    "extract_token_fields",
+    "extract_turn_context",
+    "get_reasoning_text",
+    "insert_agent_reasoning",
+    "insert_function_call",
+    "insert_function_plan",
+    "insert_prompt",
+    "insert_session",
+    "insert_token",
+    "insert_turn_context",
+    "json_dumps",
+    "parse_prompt_message",
+    "update_function_call_output",
+    # Event Handlers
+    "EventContext",
+    "EventHandlerDeps",
+    "FunctionCallTracker",
+    "handle_event_msg",
+    "handle_response_item_event",
+    "handle_turn_context_event"
+]

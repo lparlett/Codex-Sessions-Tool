@@ -272,7 +272,7 @@ def _render_prompt_group(index: int, group: dict, captured: list[str]) -> None:
     prompt_message = user_payload.get("message", "") if isinstance(user_payload, dict) else ""
     prompt = prompt_message.strip()
 
-    title = f"\n== Prompt {index} @ {user_event.get('timestamp', '?')} =="
+    title = f"\n== Prompt {index} @ {user_event.get("timestamp", "?")} =="
     prompt_text = indent(shorten(prompt, limit=500) or "<empty prompt>", "  ")
 
     _emit(title, captured)
