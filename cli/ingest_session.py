@@ -11,7 +11,7 @@ import argparse
 import logging
 from collections import Counter
 from pathlib import Path
-from typing import List, Sequence
+from typing import Any, List, Sequence
 
 from src.parsers.session_parser import SessionDiscoveryError
 from src.services.config import ConfigError, load_config, SessionsConfig
@@ -133,6 +133,28 @@ def _ingest_many_files(
         raise SystemExit(1) from err
 
 
+def _print_error_details(errors: Any, indent: str = "  ") -> int:
+    """Render structured error details and return the number of errors."""
+
+    if not isinstance(errors, list):
+        print(f"{indent}errors: 0")
+        return 0
+
+    count = len(errors)
+    print(f"{indent}errors: {count}")
+
+    for error in errors[:3]:
+        if not isinstance(error, dict):
+            continue
+        severity = error.get("severity", "UNKNOWN")
+        code = error.get("code", "<unknown>")
+        message = error.get("message", "")
+        print(f"{indent}  - {severity}/{code}: {message}")
+    if count > 3:
+        print(f"{indent}  - ... {count - 3} more")
+    return count
+
+
 def _report_many_results(summaries: Sequence[SessionSummary], database: Path) -> None:
     """Print a summary report for multiple ingested session files."""
     totals = Counter()
@@ -140,6 +162,9 @@ def _report_many_results(summaries: Sequence[SessionSummary], database: Path) ->
         print(f"Ingested: {summary['session_file']}")
         for key, value in summary.items():
             if key in {"file_id", "session_file"}:
+                continue
+            if key == "errors":
+                totals["errors"] += _print_error_details(value)
                 continue
             if isinstance(value, int):
                 totals[key] += value
@@ -160,6 +185,9 @@ def _print_single_summary(session_file: Path, database: Path, summary: SessionSu
     print("Inserted rows:")
     for key, value in summary.items():
         if key in {"file_id", "session_file"}:
+            continue
+        if key == "errors":
+            _print_error_details(value)
             continue
         print(f"  {key}: {value}")
 

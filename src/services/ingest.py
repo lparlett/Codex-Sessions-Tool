@@ -2,6 +2,7 @@
 # Author: Codex with Lauren Parlett
 # Date: 2025-10-30
 # Related tests: TBD (planned)
+# AI-assisted: Updated with Codex (GPT-5).
 
 """Ingest Codex session logs into SQLite."""
 
@@ -9,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from enum import Enum, auto
 from itertools import islice
 from pathlib import Path
 from typing import Any, Iterable, Iterator, TypedDict
@@ -40,9 +42,100 @@ from src.parsers.handlers.db_utils import (
     update_function_call_output,
 )
 from src.services.database import ensure_schema, get_connection
+from src.services.sanitization import sanitize_json
+from src.services.validation import EventValidationError, validate_event
 
 
 logger = logging.getLogger(__name__)
+
+
+def validate_jsonl_event(event: Any) -> dict[str, Any]:
+    """Wrapper around core validation to keep ingest-specific semantics."""
+
+    return validate_event(event)
+
+
+def sanitize_json_for_storage(event: dict[str, Any]) -> dict[str, Any]:
+    """Sanitize event data before persistence."""
+
+    return sanitize_json(event)
+
+
+class ErrorSeverity(Enum):
+    """Enumerates severity levels for processing issues."""
+
+    WARNING = auto()
+    ERROR = auto()
+    CRITICAL = auto()
+
+
+@dataclass
+class ProcessingError:
+    """Structured error information for session processing."""
+
+    severity: ErrorSeverity
+    code: str
+    message: str
+    file_path: Path | None = None
+    line_number: int | None = None
+    context: dict[str, Any] | None = None
+
+
+def _log_processing_error(error: ProcessingError) -> None:
+    """Log structured processing errors with appropriate severity."""
+
+    location = ""
+    if error.file_path is not None:
+        location = f" ({error.file_path}"
+        if error.line_number is not None:
+            location += f":{error.line_number}"
+        location += ")"
+    message = f"{error.code}: {error.message}{location}"
+    if error.context:
+        message += f" | context={error.context}"
+
+    if error.severity is ErrorSeverity.WARNING:
+        logger.warning(message)
+        return
+    if error.severity is ErrorSeverity.ERROR:
+        logger.error(message)
+        return
+    if error.severity is ErrorSeverity.CRITICAL:
+        logger.critical(message)
+        return
+    logger.error(message)
+
+
+def serialize_processing_error(error: ProcessingError) -> dict[str, Any]:
+    """Return a JSON-serializable representation of a processing error."""
+
+    context: dict[str, Any] | None = None
+    if error.context:
+        context = sanitize_json_for_storage(error.context)
+    return {
+        "severity": error.severity.name,
+        "code": error.code,
+        "message": error.message,
+        "file_path": str(error.file_path) if error.file_path else None,
+        "line_number": error.line_number,
+        "context": context,
+    }
+
+
+def process_events_in_batches(
+    events: Iterator[dict[str, Any]],
+    batch_size: int = 1000,
+) -> Iterator[list[dict[str, Any]]]:
+    """Yield fixed-size batches of events to manage memory usage."""
+
+    batch: list[dict[str, Any]] = []
+    for event in events:
+        batch.append(event)
+        if len(batch) >= batch_size:
+            yield batch
+            batch = []
+    if batch:
+        yield batch
 
 
 class SessionSummary(TypedDict):
@@ -56,6 +149,7 @@ class SessionSummary(TypedDict):
     agent_reasoning_messages: int
     function_plan_messages: int
     function_calls: int
+    errors: list[dict[str, Any]]
 
 
 def _ensure_file_row(conn, session_file: Path) -> int:
@@ -164,6 +258,41 @@ def _process_events(
     return processor.process(events)
 
 
+def _prepare_events(
+    raw_events: Iterable[dict[str, Any]],
+    session_file: Path,
+    errors: list[ProcessingError] | None = None,
+) -> list[dict[str, Any]]:
+    """Validate and sanitize raw events before grouping."""
+
+    prepared: list[dict[str, Any]] = []
+    index = 0
+    for batch in process_events_in_batches(iter(raw_events)):
+        for event in batch:
+            index += 1
+            try:
+                normalized = validate_jsonl_event(event)
+            except EventValidationError as exc:
+                context_data: dict[str, Any] | None = None
+                if isinstance(event, dict):
+                    context_data = {"event": sanitize_json_for_storage(event)}
+                processing_error = ProcessingError(
+                    severity=ErrorSeverity.WARNING,
+                    code="invalid_event",
+                    message=str(exc),
+                    file_path=session_file,
+                    line_number=index,
+                    context=context_data,
+                )
+                _log_processing_error(processing_error)
+                if errors is not None:
+                    errors.append(processing_error)
+                continue
+            # Security: redact potential secrets before persisting event payloads.
+            prepared.append(sanitize_json_for_storage(normalized))
+    return prepared
+
+
 def _ingest_single_session(
     conn,
     session_file: Path,
@@ -176,7 +305,9 @@ def _ingest_single_session(
         logger.info("Ingesting %s", session_file)
 
     events = load_session_events(session_file)
-    prelude, groups = group_by_user_messages(events)
+    errors: list[ProcessingError] = []
+    prepared_events = _prepare_events(events, session_file, errors)
+    prelude, groups = group_by_user_messages(prepared_events)
 
     file_id = _ensure_file_row(conn, session_file)
 
@@ -189,6 +320,7 @@ def _ingest_single_session(
         "agent_reasoning_messages": 0,
         "function_plan_messages": 0,
         "function_calls": 0,
+        "errors": [],
     }
 
     insert_session(
@@ -219,6 +351,9 @@ def _ingest_single_session(
         ):
             summary[key] = summary[key] + counts.get(key, 0)
 
+    summary["errors"] = [
+        serialize_processing_error(error) for error in errors
+    ]
     return summary
 
 
