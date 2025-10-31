@@ -43,10 +43,13 @@ jobs:
       - name: Security scan with bandit
         run: bandit -r src cli
       - name: Run tests with pytest
-        run: pytest tests/ --cov=src --cov=cli --cov-report=xml --cov-report=term
+        run: |
+          pytest tests/ --cov=src --cov=cli --cov-report=xml:coverage.xml --cov-report=term
+          ls -la  # Debug: List files to verify coverage.xml was created
       - name: Upload coverage reports
         uses: codecov/codecov-action@v3
         if: always()
         with:
-          file: ./coverage.xml
+          files: ./coverage.xml  # Use files (plural) instead of file
           fail_ci_if_error: true
+          verbose: true  # Add debug output
