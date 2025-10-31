@@ -33,9 +33,7 @@ def validate_event(event: Any) -> dict[str, Any]:
 
     timestamp = normalized.get("timestamp")
     if timestamp is not None and not isinstance(timestamp, str):
-        raise EventValidationError(
-            "Event 'timestamp' must be a string or null."
-        )
+        raise EventValidationError("Event 'timestamp' must be a string or null.")
 
     payload = normalized.get("payload")
     if payload is None:

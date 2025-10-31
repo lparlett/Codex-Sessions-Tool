@@ -13,10 +13,12 @@ import sys
 
 if sys.version_info >= (3, 11):
     import tomllib
+
     _toml_loads = tomllib.loads
     _TOMLDecodeError = tomllib.TOMLDecodeError
 else:
     import tomli
+
     _toml_loads = tomli.loads
     _TOMLDecodeError = tomli.TOMLDecodeError
 

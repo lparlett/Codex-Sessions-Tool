@@ -43,7 +43,7 @@ from .event_handlers import EVENT_HANDLER_EXPORTS
 __all__ = [
     # DB Utilities
     "AgentReasoningInsert",
-    "EventInsert", 
+    "EventInsert",
     "FunctionCallInsert",
     "FunctionCallOutputUpdate",
     "PromptInsert",
@@ -69,5 +69,5 @@ __all__ = [
     "FunctionCallTracker",
     "handle_event_msg",
     "handle_response_item_event",
-    "handle_turn_context_event"
+    "handle_turn_context_event",
 ]

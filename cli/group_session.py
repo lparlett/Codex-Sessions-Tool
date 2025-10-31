@@ -51,7 +51,9 @@ def describe_event(event: dict) -> str:
     return "\n".join(summary_lines)
 
 
-def _describe_payload(event_type: str, payload_type: str | None, payload: dict) -> list[str]:
+def _describe_payload(
+    event_type: str, payload_type: str | None, payload: dict
+) -> list[str]:
     """Route payload description to the appropriate helper."""
 
     if event_type == "event_msg":
@@ -269,7 +271,9 @@ def _render_prompt_group(index: int, group: dict, captured: list[str]) -> None:
 
     user_event = group.get("user", {})
     user_payload = user_event.get("payload", {}) if isinstance(user_event, dict) else {}
-    prompt_message = user_payload.get("message", "") if isinstance(user_payload, dict) else ""
+    prompt_message = (
+        user_payload.get("message", "") if isinstance(user_payload, dict) else ""
+    )
     prompt = prompt_message.strip()
 
     title = f"\n== Prompt {index} @ {user_event.get("timestamp", "?")} =="

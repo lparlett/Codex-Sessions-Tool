@@ -183,9 +183,7 @@ def handle_response_item_event(
     if subtype == "function_call_output":
         call_id_value = event_context.payload.get("call_id")
         call_id = (
-            call_id_value
-            if isinstance(call_id_value, str) and call_id_value
-            else None
+            call_id_value if isinstance(call_id_value, str) and call_id_value else None
         )
         row_id = tracker.resolve(call_id)
         if row_id is None:
@@ -253,9 +251,7 @@ def _register_function_call(
     )
     call_id_value = insert_context.payload.get("call_id")
     call_id = (
-        call_id_value
-        if isinstance(call_id_value, str) and call_id_value
-        else None
+        call_id_value if isinstance(call_id_value, str) and call_id_value else None
     )
     tracker.register(call_id, row_id)
     event_context.counts["function_calls"] += 1

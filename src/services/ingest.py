@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from itertools import islice
 from pathlib import Path
+from sqlite3 import Connection
 from typing import Any, Iterable, Iterator, TypedDict
 
 from src.parsers.session_parser import (
@@ -55,10 +56,32 @@ def validate_jsonl_event(event: Any) -> dict[str, Any]:
     return validate_event(event)
 
 
-def sanitize_json_for_storage(event: dict[str, Any]) -> dict[str, Any]:
-    """Sanitize event data before persistence."""
+class SanitizationError(TypeError):
+    """Raised when event sanitization fails or produces invalid output."""
 
-    return sanitize_json(event)
+
+def sanitize_json_for_storage(event: dict[str, Any]) -> dict[str, Any]:
+    """Sanitize event data before persistence.
+    
+    Args:
+        event: Raw event dictionary to sanitize
+
+    Returns:
+        Sanitized event dictionary with sensitive data redacted
+
+    Raises:
+        SanitizationError: If sanitization produces invalid output
+        TypeError: If input is not a dictionary
+    """
+    if not isinstance(event, dict):
+        raise TypeError("Event must be a dictionary")
+
+    sanitized_event = sanitize_json(event)
+    if not isinstance(sanitized_event, dict):
+        raise SanitizationError(
+            f"sanitize_json returned {type(sanitized_event)}, expected dict"
+        )
+    return sanitized_event
 
 
 class ErrorSeverity(Enum):
@@ -112,7 +135,6 @@ def _log_processing_error(error: ProcessingError) -> None:
     if error.severity is ErrorSeverity.CRITICAL:
         logger.critical(message)
         return
-    logger.error(message)
 
 
 def serialize_processing_error(error: ProcessingError) -> dict[str, Any]:
@@ -161,16 +183,13 @@ class SessionSummary(TypedDict):
     function_calls: int
     errors: list[dict[str, Any]]
 
-
-def _ensure_file_row(conn, session_file: Path) -> int:
+def _ensure_file_row(conn: Connection, session_file: Path) -> int:
     """Return file id, creating or resetting prompt data as needed."""
 
-    cursor = conn.execute(
-        "SELECT id FROM files WHERE path = ?", (str(session_file),)
-    )
+    cursor = conn.execute("SELECT id FROM files WHERE path = ?", (str(session_file),))
     row = cursor.fetchone()
     if row:
-        file_id = row[0]
+        file_id = int(row[0])
         conn.execute(
             "UPDATE files SET ingested_at = CURRENT_TIMESTAMP WHERE id = ?",
             (file_id,),
@@ -178,14 +197,14 @@ def _ensure_file_row(conn, session_file: Path) -> int:
         conn.execute("DELETE FROM prompts WHERE file_id = ?", (file_id,))
         conn.execute("DELETE FROM sessions WHERE file_id = ?", (file_id,))
         return file_id
-    cursor = conn.execute(
-        "INSERT INTO files (path) VALUES (?)", (str(session_file),)
-    )
-    return cursor.lastrowid
+    cursor = conn.execute("INSERT INTO files (path) VALUES (?)", (str(session_file),))
+    if cursor.lastrowid is None:
+        raise ValueError("Failed to retrieve lastrowid from the database.")
+    return int(cursor.lastrowid)
 
 
 def _build_prompt_insert(
-    conn,
+    conn: Connection,
     file_id: int,
     prompt_index: int,
     prompt_event: dict[str, Any],
@@ -250,7 +269,7 @@ class EventProcessor:
 
 
 def _process_events(
-    conn,
+    conn: Connection,
     prompt_id: int,
     events: Iterable[dict],
 ) -> dict[str, int]:
@@ -338,7 +357,7 @@ def _update_summary_counts(summary: SessionSummary, counts: dict) -> None:
 
 
 def _ingest_single_session(
-    conn,
+    conn: Connection,
     session_file: Path,
     *,
     verbose: bool = False,
@@ -383,9 +402,7 @@ def _ingest_single_session(
             counts = _process_events(conn, prompt_id, group["events"])
             _update_summary_counts(summary, counts)
 
-        summary["errors"] = [
-            serialize_processing_error(error) for error in errors
-        ]
+        summary["errors"] = [serialize_processing_error(error) for error in errors]
         conn.commit()
         return summary
     except Exception:

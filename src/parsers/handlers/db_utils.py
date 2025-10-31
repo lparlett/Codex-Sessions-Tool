@@ -48,18 +48,26 @@ SAFE_COLUMNS = frozenset(
 )
 
 
-def assert_safe_column(column: str) -> None:
+class UnsafeColumnError(ValueError):
+    """Raised when attempting to bind user data to an unvetted column."""
+
+
+def validate_safe_column(column: str) -> None:
     """Ensure only vetted columns receive user-supplied payloads."""
 
     if column not in SAFE_COLUMNS:
-        raise ValueError(f"Unsafe column binding attempted: {column}")
+        raise UnsafeColumnError(
+            f"Column '{column}' is not in the allowlist for user-supplied data. "
+            f"Allowed columns are: {sorted(SAFE_COLUMNS)}"
+        )
 
 
 def safe_value(column: str, value: Any) -> Any:
     """Return value after verifying the destination column is permitted."""
 
-    assert_safe_column(column)
+    validate_safe_column(column)
     return value
+
 
 def json_dumps(data: Any) -> str:
     """Serialize payloads to JSON without forcing ASCII."""
@@ -99,8 +107,8 @@ def extract_session_details(prelude: list[dict]) -> dict[str, Any]:
         payload = event.get("payload")
         if event_type == "session_meta" and isinstance(payload, dict):
             details["session_id"] = payload.get("id")
-            details["session_timestamp"] = (
-                payload.get("timestamp") or event.get("timestamp")
+            details["session_timestamp"] = payload.get("timestamp") or event.get(
+                "timestamp"
             )
             details["cwd"] = payload.get("cwd") or details["cwd"]
         elif (
@@ -153,8 +161,7 @@ def extract_token_fields(payload: dict) -> dict[str, Any]:
     return {
         "primary_used_percent": primary.get("used_percent"),
         "primary_window_minutes": primary.get("window_minutes"),
-        "primary_resets": primary.get("resets_at")
-        or primary.get("resets_in_seconds"),
+        "primary_resets": primary.get("resets_at") or primary.get("resets_in_seconds"),
         "secondary_used_percent": secondary.get("used_percent"),
         "secondary_window_minutes": secondary.get("window_minutes"),
         "secondary_resets": secondary.get("resets_at")
@@ -165,9 +172,7 @@ def extract_token_fields(payload: dict) -> dict[str, Any]:
 def extract_turn_context(payload: dict) -> dict[str, Any]:
     """Normalize turn context payload for insertion."""
 
-    sandbox = (
-        payload.get("sandbox_policy", {}) if isinstance(payload, dict) else {}
-    )
+    sandbox = payload.get("sandbox_policy", {}) if isinstance(payload, dict) else {}
     writable_roots = sandbox.get("writable_roots")
     if isinstance(writable_roots, list):
         writable_roots = ", ".join(str(item) for item in writable_roots)
@@ -183,8 +188,6 @@ def extract_turn_context(payload: dict) -> dict[str, Any]:
 def get_reasoning_text(payload: dict) -> str | None:
     """Extract reasoning text from payload if present."""
 
-    if not isinstance(payload, dict):
-        return None
     text = payload.get("text")
     if isinstance(text, str) and text.strip():
         return text
@@ -251,6 +254,7 @@ def parse_prompt_message(
 @dataclass
 class SessionInsert:
     """Context for inserting session-level metadata."""
+
     conn: Any
     file_id: int
     prelude: list[dict]
@@ -259,6 +263,7 @@ class SessionInsert:
 @dataclass
 class PromptInsert:
     """Context for inserting a user prompt."""
+
     conn: Any
     file_id: int
     prompt_index: int
@@ -270,6 +275,7 @@ class PromptInsert:
 @dataclass
 class EventInsert:
     """Context for inserting an event related to a prompt."""
+
     conn: Any
     prompt_id: int
     timestamp: str | None
@@ -280,6 +286,7 @@ class EventInsert:
 @dataclass
 class AgentReasoningInsert(EventInsert):
     """Context for inserting agent reasoning content."""
+
     source: str
 
 
@@ -291,6 +298,7 @@ class FunctionCallInsert(EventInsert):
 @dataclass
 class FunctionCallOutputUpdate:
     """Context for updating a function call with output details."""
+
     conn: Any
     row_id: int
     timestamp: str | None
@@ -325,9 +333,7 @@ def insert_session(context: SessionInsert) -> None:
 def insert_prompt(context: PromptInsert) -> int:
     """Insert prompt row and return its id."""
 
-    active_file, open_tabs, my_request = parse_prompt_message(
-        context.message
-    )
+    active_file, open_tabs, my_request = parse_prompt_message(context.message)
     cursor = context.conn.execute(
         """
         INSERT INTO prompts (
@@ -347,7 +353,7 @@ def insert_prompt(context: PromptInsert) -> int:
             json_dumps(context.raw),
         ),
     )
-    return cursor.lastrowid
+    return int(cursor.lastrowid)
 
 
 def insert_token(context: EventInsert) -> None:
@@ -464,7 +470,7 @@ def insert_function_call(context: FunctionCallInsert) -> int:
             None,
         ),
     )
-    return cursor.lastrowid
+    return int(cursor.lastrowid)
 
 
 def update_function_call_output(context: FunctionCallOutputUpdate) -> None:
@@ -483,6 +489,7 @@ def update_function_call_output(context: FunctionCallOutputUpdate) -> None:
             context.row_id,
         ),
     )
+
 
 # Update this tuple when adding/removing exports above.
 __all__ = (

@@ -1,4 +1,4 @@
-# Purpose: command-line entry for ingesting Codex session logs into 
+# Purpose: command-line entry for ingesting Codex session logs into
 #           SQLite storage.
 # Author: Codex with Lauren Parlett
 # Date: 2025-10-30
@@ -31,27 +31,20 @@ def build_parser() -> argparse.ArgumentParser:
         argparse.ArgumentParser: _parser instance
     """
     parser = argparse.ArgumentParser(
-        description=(
-            "Ingest the earliest Codex session into an "
-            "SQLite database."
-        ),
+        description=("Ingest the earliest Codex session into an " "SQLite database."),
     )
     parser.add_argument(
         "--database",
         "-d",
         type=Path,
         default=Path("reports") / "session_data.sqlite",
-        help=("Path to the SQLite database "
-              "(default: reports/session_data.sqlite)."
-        ),
+        help=("Path to the SQLite database " "(default: reports/session_data.sqlite)."),
     )
     parser.add_argument(
         "--session",
         "-s",
         type=Path,
-        help=("Optional explicit session file to ingest instead of "
-              "auto-discovery."
-              ),
+        help=("Optional explicit session file to ingest instead of " "auto-discovery."),
     )
     parser.add_argument(
         "--limit",
@@ -68,9 +61,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--debug",
         action="store_true",
-        help=("Debug mode: enable verbose logging and limit "
-              "ingest to two files."
-        ),
+        help=("Debug mode: enable verbose logging and limit " "ingest to two files."),
     )
     return parser
 
@@ -112,9 +103,7 @@ def _resolve_runtime_options(
 
     verbose = args.verbose or args.debug
     limit = args.limit
-    if args.debug and (
-        limit is None or limit > 2
-    ):
+    if args.debug and (limit is None or limit > 2):
         limit = 2
     return verbose, limit
 
@@ -122,8 +111,7 @@ def _resolve_runtime_options(
 def _configure_logging(verbose: bool) -> None:
     """Configure logging based on verbosity setting."""
     if verbose:
-        logging.basicConfig(level=logging.INFO, 
-                            format="%(levelname)s %(message)s")
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
 
 def _load_configuration() -> SessionsConfig:
@@ -212,7 +200,7 @@ def _report_many_results(
     database: Path,
 ) -> None:
     """Print a summary report for multiple ingested session files."""
-    totals = Counter()
+    totals: Counter[str] = Counter()
     for summary in summaries:
         print(f"Ingested: {summary["session_file"]}")
         for key, value in summary.items():

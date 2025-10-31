@@ -19,7 +19,7 @@ good-names=i,j,k,ex,Run,_,fp
 bad-names=foo,bar,baz
 
 [FORMAT]
-max-line-length=80
+max-line-length=88
 ignore-long-lines=^\s*(# )?<?https?://\S+>?$
 single-line-if-stmt=no
 max-module-lines=2000
