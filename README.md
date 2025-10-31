@@ -4,7 +4,7 @@
 [![Version](https://img.shields.io/badge/version-0.1.0--dev-orange)](#)
 [![Python](https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white)](#)
 <!-- markdownlint-enable MD042 -->
-> **Vibe coding, radical transparency.**  
+> **AI-assisted coding, radical transparency.**  
 > This project is intentionally built in public with full disclosure of AI assistance. Every prompt, agent action, and generated artifact flows through the pipeline we’re building.
 
 ---
@@ -79,7 +79,7 @@ Beyond v1.0.0 we’re targeting tagging, audit trails, API integrations, VS Code
 
 ## Contributing & ethos
 
-This is a “vibe coding” project—experiments will happen—but the mandate is transparency:
+This is an “AI-assisted” project—experiments will happen—but the mandate is transparency:
 
 - Every commit notes AI assistance.
 - Raw logs remain user-owned; ingest only reads from configured paths.
