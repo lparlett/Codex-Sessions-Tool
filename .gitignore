@@ -1,8 +1,5 @@
 # Ignore local user configs
 user/config.toml
-setup.cfg
-.pylintrc
-mypy.ini
 
 # Ignore Python cache files
 __pycache__/
@@ -17,5 +14,4 @@ __pycache__/
 
 # Coverage files
 .coverage
-tests/coverage.xml
 tests/htmlcov/
