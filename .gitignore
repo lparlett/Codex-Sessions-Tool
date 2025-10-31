@@ -1,5 +1,8 @@
 # Ignore local user configs
 user/config.toml
+setup.config
+.pylintrc
+mypy.ini
 
 # Ignore Python cache files
 __pycache__/
@@ -8,5 +11,11 @@ __pycache__/
 # Ignore virtual environment directories
 .venv/
 .vscode/
+
 # Ignore SQLite database files
 *.sqlite
+
+# Coverage files
+.coverage
+tests/coverage.xml
+tests/htmlcov/
