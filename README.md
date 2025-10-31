@@ -3,6 +3,7 @@
 [![Status](https://img.shields.io/badge/status-experimental-blueviolet)](#)
 [![Version](https://img.shields.io/badge/version-0.1.0--dev-orange)](#)
 [![Python](https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white)](#)
+![Codecov](https://img.shields.io/codecov/c/:vcsName/:user/:repo?style=social&logo=codecov&labelColor=%23F01F7A)
 <!-- markdownlint-enable MD042 -->
 > **AI-assisted coding, radical transparency.**  
 > This project is intentionally built in public with full disclosure of AI assistance. Every prompt, agent action, and generated artifact flows through the pipeline we’re building.
