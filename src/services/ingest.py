@@ -62,7 +62,7 @@ class SanitizationError(TypeError):
 
 def sanitize_json_for_storage(event: dict[str, Any]) -> dict[str, Any]:
     """Sanitize event data before persistence.
-    
+
     Args:
         event: Raw event dictionary to sanitize
 
@@ -182,6 +182,7 @@ class SessionSummary(TypedDict):
     function_plan_messages: int
     function_calls: int
     errors: list[dict[str, Any]]
+
 
 def _ensure_file_row(conn: Connection, session_file: Path) -> int:
     """Return file id, creating or resetting prompt data as needed."""
@@ -356,6 +357,70 @@ def _update_summary_counts(summary: SessionSummary, counts: dict) -> None:
         summary[key] += counts.get(key, 0)
 
 
+@dataclass
+class SessionIngester:
+    """Process and store a single session's events."""
+
+    conn: Connection
+    session_file: Path
+    batch_size: int
+    verbose: bool
+    errors: list[ProcessingError]
+    file_id: int = field(init=False)
+    summary: SessionSummary = field(init=False)
+
+    def __post_init__(self) -> None:
+        """Initialize session-level data after construction."""
+        if self.verbose:
+            logger.info("Ingesting %s", self.session_file)
+        self.file_id = _ensure_file_row(self.conn, self.session_file)
+        self.summary = _create_empty_summary(self.session_file, self.file_id)
+
+    def process_session(self) -> SessionSummary:
+        """Process all events in the session."""
+        events = load_session_events(self.session_file)
+        prepared_events = _prepare_events(
+            events,
+            self.session_file,
+            self.errors,
+            batch_size=self.batch_size,
+        )
+        prelude, groups = group_by_user_messages(prepared_events)
+        self._store_session_data(prelude, groups)
+        self._finalize_summary()
+        return self.summary
+
+    def _store_session_data(self, prelude: list[dict], groups: list[dict]) -> None:
+        """Store session data and process prompt groups."""
+        insert_session(
+            SessionInsert(
+                conn=self.conn,
+                file_id=self.file_id,
+                prelude=prelude or [],
+            )
+        )
+        self._process_groups(groups)
+
+    def _process_groups(self, groups: list[dict]) -> None:
+        """Process and store each prompt group."""
+        for index, group in enumerate(groups, start=1):
+            prompt_insert = _build_prompt_insert(
+                self.conn,
+                self.file_id,
+                index,
+                group["user"],
+            )
+            prompt_id = insert_prompt(prompt_insert)
+            counts = _process_events(self.conn, prompt_id, group["events"])
+            _update_summary_counts(self.summary, counts)
+
+    def _finalize_summary(self) -> None:
+        """Add error information to the summary."""
+        self.summary["errors"] = [
+            serialize_processing_error(error) for error in self.errors
+        ]
+
+
 def _ingest_single_session(
     conn: Connection,
     session_file: Path,
@@ -364,45 +429,16 @@ def _ingest_single_session(
     batch_size: int = 1000,
 ) -> SessionSummary:
     """Internal helper to ingest one session using an existing connection."""
-
-    if verbose:
-        logger.info("Ingesting %s", session_file)
-
     conn.execute("BEGIN IMMEDIATE")
     try:
-        events = load_session_events(session_file)
-        errors: list[ProcessingError] = []
-        prepared_events = _prepare_events(
-            events,
-            session_file,
-            errors,
+        ingester = SessionIngester(
+            conn=conn,
+            session_file=session_file,
             batch_size=batch_size,
+            verbose=verbose,
+            errors=[],
         )
-        prelude, groups = group_by_user_messages(prepared_events)
-
-        file_id = _ensure_file_row(conn, session_file)
-        summary = _create_empty_summary(session_file, file_id)
-
-        insert_session(
-            SessionInsert(
-                conn=conn,
-                file_id=file_id,
-                prelude=prelude or [],
-            )
-        )
-
-        for index, group in enumerate(groups, start=1):
-            prompt_insert = _build_prompt_insert(
-                conn,
-                file_id,
-                index,
-                group["user"],
-            )
-            prompt_id = insert_prompt(prompt_insert)
-            counts = _process_events(conn, prompt_id, group["events"])
-            _update_summary_counts(summary, counts)
-
-        summary["errors"] = [serialize_processing_error(error) for error in errors]
+        summary = ingester.process_session()
         conn.commit()
         return summary
     except Exception:
