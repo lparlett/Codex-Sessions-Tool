@@ -1,5 +1,7 @@
 """Tests for configuration loading and validation."""
 
+# pylint: disable=unused-argument  # Pytest fixtures may appear unused but are needed
+
 from __future__ import annotations
 
 from pathlib import Path
