@@ -1,6 +1,6 @@
 # Ignore local user configs
 user/config.toml
-setup.config
+setup.cfg
 .pylintrc
 mypy.ini
 
