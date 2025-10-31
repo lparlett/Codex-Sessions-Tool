@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -18,6 +19,12 @@ __all__ = [
     "extract_turn_context",
     "get_reasoning_text",
     "parse_prompt_message",
+    "SessionInsert",
+    "PromptInsert",
+    "EventInsert",
+    "AgentReasoningInsert",
+    "FunctionCallInsert",
+    "FunctionCallOutputUpdate",
     "insert_session",
     "insert_prompt",
     "insert_token",
@@ -216,11 +223,61 @@ def parse_prompt_message(
     return active_file, open_tabs_value, my_request_value
 
 
-def insert_session(conn, file_id: int, prelude: list[dict]) -> None:
+@dataclass
+class SessionInsert:
+    """Context for inserting session-level metadata."""
+    conn: Any
+    file_id: int
+    prelude: list[dict]
+
+
+@dataclass
+class PromptInsert:
+    """Context for inserting a user prompt."""
+    conn: Any
+    file_id: int
+    prompt_index: int
+    timestamp: str | None
+    message: str
+    raw: dict
+
+
+@dataclass
+class EventInsert:
+    """Context for inserting an event related to a prompt."""
+    conn: Any
+    prompt_id: int
+    timestamp: str | None
+    payload: dict
+    raw: dict
+
+
+@dataclass
+class AgentReasoningInsert(EventInsert):
+    """Context for inserting agent reasoning content."""
+    source: str
+
+
+@dataclass
+class FunctionCallInsert(EventInsert):
+    """Context for inserting a function call event."""
+
+
+@dataclass
+class FunctionCallOutputUpdate:
+    """Context for updating a function call with output details."""
+    conn: Any
+    row_id: int
+    timestamp: str | None
+    payload: dict
+    raw: dict
+
+
+def insert_session(context: SessionInsert) -> None:
     """Persist session-level metadata captured before the first user prompt."""
 
-    details = extract_session_details(prelude)
-    conn.execute(
+    details = extract_session_details(context.prelude)
+    context.conn.execute(
         """
         INSERT INTO sessions (
             file_id, session_id, session_timestamp, cwd, approval_policy,
@@ -228,30 +285,25 @@ def insert_session(conn, file_id: int, prelude: list[dict]) -> None:
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            file_id,
+            context.file_id,
             details["session_id"],
             details["session_timestamp"],
             details["cwd"],
             details["approval_policy"],
             details["sandbox_mode"],
             details["network_access"],
-            json_dumps({"events": prelude}),
+            json_dumps({"events": context.prelude}),
         ),
     )
 
 
-def insert_prompt(
-    conn,
-    file_id: int,
-    prompt_index: int,
-    timestamp: str | None,
-    message: str,
-    raw: dict,
-) -> int:
+def insert_prompt(context: PromptInsert) -> int:
     """Insert prompt row and return its id."""
 
-    active_file, open_tabs, my_request = parse_prompt_message(message)
-    cursor = conn.execute(
+    active_file, open_tabs, my_request = parse_prompt_message(
+        context.message
+    )
+    cursor = context.conn.execute(
         """
         INSERT INTO prompts (
             file_id, prompt_index, timestamp, message, active_file, open_tabs,
@@ -260,30 +312,24 @@ def insert_prompt(
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            file_id,
-            prompt_index,
-            timestamp,
-            message,
+            context.file_id,
+            context.prompt_index,
+            context.timestamp,
+            context.message,
             active_file,
             open_tabs,
             my_request,
-            json_dumps(raw),
+            json_dumps(context.raw),
         ),
     )
     return cursor.lastrowid
 
 
-def insert_token(
-    conn,
-    prompt_id: int,
-    timestamp: str | None,
-    payload: dict,
-    raw: dict,
-) -> None:
+def insert_token(context: EventInsert) -> None:
     """Persist token usage data."""
 
-    fields = extract_token_fields(payload)
-    conn.execute(
+    fields = extract_token_fields(context.payload)
+    context.conn.execute(
         """
         INSERT INTO token_messages (
             prompt_id, timestamp,
@@ -293,30 +339,24 @@ def insert_token(
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            prompt_id,
-            timestamp,
+            context.prompt_id,
+            context.timestamp,
             fields["primary_used_percent"],
             fields["primary_window_minutes"],
             fields["primary_resets"],
             fields["secondary_used_percent"],
             fields["secondary_window_minutes"],
             fields["secondary_resets"],
-            json_dumps(raw),
+            json_dumps(context.raw),
         ),
     )
 
 
-def insert_turn_context(
-    conn,
-    prompt_id: int,
-    timestamp: str | None,
-    payload: dict,
-    raw: dict,
-) -> None:
+def insert_turn_context(context: EventInsert) -> None:
     """Persist turn context metadata."""
 
-    ctx = extract_turn_context(payload)
-    conn.execute(
+    ctx = extract_turn_context(context.payload)
+    context.conn.execute(
         """
         INSERT INTO turn_context_messages (
             prompt_id, timestamp, cwd, approval_policy, sandbox_mode,
@@ -324,30 +364,23 @@ def insert_turn_context(
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            prompt_id,
-            timestamp,
+            context.prompt_id,
+            context.timestamp,
             ctx["cwd"],
             ctx["approval_policy"],
             ctx["sandbox_mode"],
             ctx["network_access"],
             ctx["writable_roots"],
-            json_dumps(raw),
+            json_dumps(context.raw),
         ),
     )
 
 
-def insert_agent_reasoning(
-    conn,
-    prompt_id: int,
-    timestamp: str | None,
-    source: str,
-    payload: dict,
-    raw: dict,
-) -> None:
+def insert_agent_reasoning(context: AgentReasoningInsert) -> None:
     """Persist agent reasoning content."""
 
-    text = get_reasoning_text(payload)
-    conn.execute(
+    text = get_reasoning_text(context.payload)
+    context.conn.execute(
         """
         INSERT INTO agent_reasoning_messages (
             prompt_id, timestamp, source, text, raw_json
@@ -355,25 +388,19 @@ def insert_agent_reasoning(
         VALUES (?, ?, ?, ?, ?)
         """,
         (
-            prompt_id,
-            timestamp,
-            source,
+            context.prompt_id,
+            context.timestamp,
+            context.source,
             text,
-            json_dumps(raw),
+            json_dumps(context.raw),
         ),
     )
 
 
-def insert_function_plan(
-    conn,
-    prompt_id: int,
-    timestamp: str | None,
-    payload: dict,
-    raw: dict,
-) -> None:
+def insert_function_plan(context: EventInsert) -> None:
     """Persist update_plan function calls."""
 
-    conn.execute(
+    context.conn.execute(
         """
         INSERT INTO function_plan_messages (
             prompt_id, timestamp, name, arguments, raw_json
@@ -381,25 +408,19 @@ def insert_function_plan(
         VALUES (?, ?, ?, ?, ?)
         """,
         (
-            prompt_id,
-            timestamp,
-            payload.get("name"),
-            payload.get("arguments"),
-            json_dumps(raw),
+            context.prompt_id,
+            context.timestamp,
+            context.payload.get("name"),
+            context.payload.get("arguments"),
+            json_dumps(context.raw),
         ),
     )
 
 
-def insert_function_call(
-    conn,
-    prompt_id: int,
-    timestamp: str | None,
-    payload: dict,
-    raw: dict,
-) -> int:
+def insert_function_call(context: FunctionCallInsert) -> int:
     """Persist function calls (non-update_plan) and return row id."""
 
-    cursor = conn.execute(
+    cursor = context.conn.execute(
         """
         INSERT INTO function_calls (
             prompt_id, call_timestamp, output_timestamp, name, call_id,
@@ -407,39 +428,33 @@ def insert_function_call(
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            prompt_id,
-            timestamp,
+            context.prompt_id,
+            context.timestamp,
             None,
-            payload.get("name"),
-            payload.get("call_id"),
-            payload.get("arguments"),
+            context.payload.get("name"),
+            context.payload.get("call_id"),
+            context.payload.get("arguments"),
             None,
-            json_dumps(raw),
+            json_dumps(context.raw),
             None,
         ),
     )
     return cursor.lastrowid
 
 
-def update_function_call_output(
-    conn,
-    row_id: int,
-    timestamp: str | None,
-    payload: dict,
-    raw: dict,
-) -> None:
+def update_function_call_output(context: FunctionCallOutputUpdate) -> None:
     """Update the stored function call with output payload details."""
 
-    conn.execute(
+    context.conn.execute(
         """
         UPDATE function_calls
         SET output_timestamp = ?, output = ?, raw_output_json = ?
         WHERE id = ?
         """,
         (
-            timestamp,
-            payload.get("output"),
-            json_dumps(raw),
-            row_id,
+            context.timestamp,
+            context.payload.get("output"),
+            json_dumps(context.raw),
+            context.row_id,
         ),
     )

@@ -19,6 +19,7 @@ from src.parsers.session_parser import (
     load_session_events,
 )
 from src.parsers.handlers.event_handlers import (
+    EventContext,
     EventHandlerDeps,
     FunctionCallTracker,
     handle_event_msg,
@@ -26,6 +27,8 @@ from src.parsers.handlers.event_handlers import (
     handle_turn_context_event,
 )
 from src.parsers.handlers.db_utils import (
+    SessionInsert,
+    PromptInsert,
     insert_session,
     insert_prompt,
     insert_token,
@@ -108,37 +111,24 @@ def _process_events(
 
         event_type = event.get("type")
         timestamp = event.get("timestamp")
+        event_context = EventContext(
+            conn=conn,
+            prompt_id=prompt_id,
+            timestamp=timestamp,
+            payload=payload,
+            raw_event=event,
+            counts=counts,
+        )
 
         if event_type == "event_msg":
-            handle_event_msg(
-                deps,
-                conn,
-                prompt_id,
-                timestamp,
-                payload,
-                event,
-                counts,
-            )
+            handle_event_msg(deps, event_context)
         elif event_type == "turn_context":
-            handle_turn_context_event(
-                deps,
-                conn,
-                prompt_id,
-                timestamp,
-                payload,
-                event,
-                counts,
-            )
+            handle_turn_context_event(deps, event_context)
         elif event_type == "response_item":
             handle_response_item_event(
                 deps,
-                conn,
-                prompt_id,
-                timestamp,
-                payload,
-                event,
+                event_context,
                 tracker,
-                counts,
             )
 
     return counts
@@ -171,7 +161,13 @@ def _ingest_single_session(
         "function_calls": 0,
     }
 
-    insert_session(conn, file_id, prelude or [])
+    insert_session(
+        SessionInsert(
+            conn=conn,
+            file_id=file_id,
+            prelude=prelude or [],
+        )
+    )
 
     for index, group in enumerate(groups, start=1):
         prompt_event = group["user"]
@@ -183,12 +179,14 @@ def _ingest_single_session(
         )
         timestamp = prompt_event.get("timestamp")
         prompt_id = insert_prompt(
-            conn,
-            file_id,
-            index,
-            timestamp,
-            message,
-            prompt_event,
+            PromptInsert(
+                conn=conn,
+                file_id=file_id,
+                prompt_index=index,
+                timestamp=timestamp,
+                message=message,
+                raw=prompt_event,
+            )
         )
         summary["prompts"] = summary["prompts"] + 1
         counts = _process_events(conn, prompt_id, group["events"])

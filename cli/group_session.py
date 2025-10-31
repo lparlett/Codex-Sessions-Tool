@@ -194,7 +194,10 @@ def main() -> None:
     try:
         session_file = _discover_session_file()
     except (ConfigError, SessionDiscoveryError) as err:
-        message = f"Configuration error: {err}" if isinstance(err, ConfigError) else f"Session discovery error: {err}"
+        if isinstance(err, ConfigError):
+            message = f"Configuration error: {err}"
+        else:
+            message = f"Session discovery error: {err}"
         print(message)
         if args.output:
             write_report(args.output, [message])
