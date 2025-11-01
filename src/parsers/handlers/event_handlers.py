@@ -15,6 +15,13 @@ EVENT_HANDLER_EXPORTS: tuple[str, ...] = (
     "EventContext",
     "EventHandlerDeps",
     "FunctionCallTracker",
+    "InsertEventFn",
+    "InsertTokenFn",
+    "InsertTurnContextFn",
+    "InsertAgentReasoningFn",
+    "InsertFunctionPlanFn",
+    "InsertFunctionCallFn",
+    "UpdateFunctionCallOutputFn",
     "handle_event_msg",
     "handle_turn_context_event",
     "handle_response_item_event",
@@ -27,6 +34,7 @@ from .db_utils import (
     FunctionCallOutputUpdate,
 )
 
+InsertEventFn = Callable[[EventInsert], None]
 InsertTokenFn = Callable[[EventInsert], None]
 InsertTurnContextFn = Callable[[EventInsert], None]
 InsertAgentReasoningFn = Callable[[AgentReasoningInsert], None]
@@ -51,6 +59,7 @@ class EventContext:
 class EventHandlerDeps:
     """Callable dependencies used by the session event handlers."""
 
+    insert_event: InsertEventFn
     insert_token: InsertTokenFn
     insert_turn_context: InsertTurnContextFn
     insert_agent_reasoning: InsertAgentReasoningFn
@@ -98,6 +107,10 @@ def handle_event_msg(
         payload=event_context.payload,
         raw=event_context.raw_event,
     )
+
+    # Insert the base event record first
+    deps.insert_event(insert_context)
+    event_context.counts["events"] = event_context.counts.get("events", 0) + 1
 
     if subtype == "token_count":
         deps.insert_token(insert_context)
@@ -256,6 +269,3 @@ def _register_function_call(
     tracker.register(call_id, row_id)
     event_context.counts["function_calls"] += 1
     return row_id
-
-
-__all__ = list(EVENT_HANDLER_EXPORTS)

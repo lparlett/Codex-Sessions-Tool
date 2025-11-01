@@ -3,10 +3,10 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "codex-sessions-tool"
+name = "ai-log-trail"
 version = "0.1.0"
 requires-python = ">=3.12"
-description = "Transparency tooling for Codex session logs."
+description = "Transparency tooling for AI agent session logs."
 readme = "README.md"
 authors = [{name = "Codex with Lauren Parlett"}]
 license = {text = "MIT"}

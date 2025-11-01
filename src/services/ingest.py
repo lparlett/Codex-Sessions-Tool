@@ -35,6 +35,7 @@ from src.parsers.handlers.db_utils import (
     PromptInsert,
     insert_session,
     insert_prompt,
+    insert_event,
     insert_token,
     insert_turn_context,
     insert_agent_reasoning,
@@ -277,6 +278,7 @@ def _process_events(
     """Process events for a prompt and populate child tables."""
 
     deps = EventHandlerDeps(
+        insert_event=insert_event,
         insert_token=insert_token,
         insert_turn_context=insert_turn_context,
         insert_agent_reasoning=insert_agent_reasoning,

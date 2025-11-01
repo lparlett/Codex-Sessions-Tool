@@ -1,12 +1,12 @@
-﻿# Codex Sessions Tool
+﻿# AI Log Trail
 <!-- markdownlint-disable MD042 -->
 [![Status](https://img.shields.io/badge/status-experimental-blueviolet)](#)
 [![Version](https://img.shields.io/badge/version-0.1.0--dev-orange)](#)
 [![Python](https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white)](#)
-![Codecov](https://img.shields.io/codecov/c/github/lparlett/Codex-Sessions-Tool?logo=codecov&logoColor=%23F01F7A)
+![Codecov](https://img.shields.io/codecov/c/github/lparlett/ai-log-trail?logo=codecov&logoColor=%23F01F7A)
 <!-- markdownlint-enable MD042 -->
-> **AI-assisted coding, radical transparency.**  
-> This project is intentionally built in public with full disclosure of AI assistance. Every prompt, agent action, and generated artifact flows through the pipeline we’re building.
+> **Universal AI assistance logging with transparency.**  
+> A flexible framework for capturing, analyzing, and sharing AI agent interactions while maintaining privacy and auditability. Supporting multiple AI agents and workflows, this tool helps organizations track and understand their AI usage patterns.
 
 ---
 

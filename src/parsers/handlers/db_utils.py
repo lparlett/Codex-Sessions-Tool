@@ -27,6 +27,7 @@ DB_UTIL_EXPORTS: tuple[str, ...] = (
     "FunctionCallOutputUpdate",
     "insert_session",
     "insert_prompt",
+    "insert_event",
     "insert_token",
     "insert_turn_context",
     "insert_agent_reasoning",
@@ -281,6 +282,36 @@ class EventInsert:
     timestamp: str | None
     payload: dict
     raw: dict
+
+
+def insert_event(ctx: EventInsert) -> None:
+    """Insert a base event record."""
+
+    cursor = ctx.conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO events (
+            file_id,
+            timestamp,
+            event_type,
+            category,
+            priority,
+            session_id,
+            data,
+            raw_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """,
+        (
+            ctx.prompt_id,
+            ctx.timestamp,
+            ctx.payload.get("type", "unknown"),
+            ctx.payload.get("category", "other"),
+            ctx.payload.get("priority", "medium"),
+            ctx.payload.get("session_id"),
+            json_dumps(ctx.payload),
+            json_dumps(ctx.raw),
+        ),
+    )
 
 
 @dataclass

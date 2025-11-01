@@ -95,6 +95,8 @@ python -m cli.group_session -o reports/session.txt
    - Type hints required (PEP 484)
    - Google-style docstrings
    - AI assistance noted in file headers
+   - All code must pass linting with `flake8` and `mypy`
+   - All code must be formatted with `black`
 
 3. Error Classification
    ```python

@@ -1,13 +1,33 @@
-## TODO
-#- Document how to copy `user/config.example.toml` to `user/config.toml` in the 
-# README setup instructions.
-# User-specific settings for Codex Sessions Tool.
-[sessions]
-# Absolute path to the root directory containing Codex session logs.
-# Windows example: C:\\Users\\<user>\\.codex\\sessions
-# macOS/Linux example: /Users/<user>/.codex/sessions
-root = "/path/to/.codex/sessions"
+# AI Log Trail Configuration
+# Copy this file to config.toml and customize for your environment
 
+# Global settings
 [ingest]
-# Optional: override default event batch size (default: 1000)
-batch_size = 1000
+batch_size = 1000  # Events to process per batch
+db_path = "data/sessions.sqlite"  # Path to SQLite database
+max_workers = 4  # Max concurrent parsers
+
+# Agent-specific configurations
+[agents.codex]
+type = "codex"
+root = "/path/to/.codex/sessions"  # Path to Codex logs
+features = { streaming = true, function_calls = true, tool_usage = true }
+
+[agents.copilot]
+type = "copilot" 
+root = "/path/to/.copilot/logs"  # Path to Copilot logs
+features = { streaming = false, function_calls = true, tool_usage = true }
+
+[agents.claude]
+type = "claude"
+root = "/path/to/claude/logs"  # Path to Claude logs
+features = { streaming = true, function_calls = true, context_window = true }
+
+# Optional: Agent-specific ingest settings
+[agents.codex.ingest]
+batch_size = 2000  # Override global batch size
+preserve_raw = true  # Keep raw JSON
+
+[export]
+redact_secrets = true  # Auto-redact potential secrets
+max_content_length = 1000000  # Max event content size

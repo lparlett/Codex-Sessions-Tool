@@ -97,6 +97,18 @@ CREATE TABLE IF NOT EXISTS function_calls (
     raw_call_json TEXT,
     raw_output_json TEXT
 );
+
+CREATE TABLE IF NOT EXISTS events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+    timestamp TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    category TEXT NOT NULL,
+    priority TEXT NOT NULL,
+    session_id TEXT,
+    data TEXT,
+    raw_json TEXT
+);
 """
 
 
