@@ -14,7 +14,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from ...core.models.base_event import BaseEvent, EventCategory, EventPriority
+from ...core.models.base_event import BaseEvent
+from ...core.models.event_data import BaseEventData, EventCategory, EventPriority
 
 
 @dataclass(frozen=True)
@@ -40,85 +41,21 @@ class CodexMessageData:
         )
 
 
-class Message(BaseEvent):
-    """Represents a message (user input or AI response) in a Codex session."""
-
-    def __init__(
-        self,
-        content: str,
-        is_user: bool,
-        session_id: str,
-        timestamp: datetime | None = None,
-        raw_data: dict[str, Any] | None = None,
-    ) -> None:
-        """Initialize a Codex message event."""
-        resolved_timestamp = timestamp or datetime.now()
-        event_category = (
-            EventCategory.USER_INPUT if is_user else EventCategory.AGENT_RESPONSE
-        )
-
-        super().__init__(
-            agent_type="codex",
-            timestamp=resolved_timestamp,
-            event_type="user_message" if is_user else "ai_response",
-            event_category=event_category,
-            priority=EventPriority.HIGH,
-            session_id=session_id,
-            raw_data=raw_data,
-        )
-
-        self._content = content
-        self._is_user = is_user
-
-    @property
-    def content(self) -> str:
-        """Get the message content."""
-        return self._content
-
-    @property
-    def is_user(self) -> bool:
-        """Get whether this is a user message."""
-        return self._is_user
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert message to dictionary for storage."""
-        return {
-            "agent_type": self.agent_type,
-            "timestamp": self.timestamp.isoformat(),
-            "event_type": self.event_type,
-            "event_category": self.event_category.value,
-            "priority": self.priority.value,
-            "session_id": self.session_id,
-            "content": self.content,
-            "is_user": self.is_user,
-            "raw_data": self.raw_data,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> Message:
-        """Create a message from a dictionary."""
-        return cls(
-            content=data["content"],
-            is_user=data["is_user"],
-            session_id=data["session_id"],
-            timestamp=datetime.fromisoformat(data["timestamp"]),
-            raw_data=data.get("raw_data"),
-        )
-
-
 class CodexMessage(BaseEvent):
     """Represents a message (user input or AI response) in a Codex session."""
 
     def __init__(self, data: CodexMessageData) -> None:
         """Initialize a Codex message event with structured data."""
         super().__init__(
-            agent_type="codex",
-            timestamp=data.timestamp,
-            event_type=data.event_type,
-            event_category=data.category,
-            priority=EventPriority.HIGH,
-            session_id=data.session_id,
-            raw_data=data.raw_data,
+            BaseEventData(
+                agent_type="codex",
+                timestamp=data.timestamp,
+                event_type=data.event_type,
+                event_category=data.category,
+                priority=EventPriority.HIGH,
+                session_id=data.session_id,
+                raw_data=data.raw_data,
+            )
         )
         self._message_data = data
 

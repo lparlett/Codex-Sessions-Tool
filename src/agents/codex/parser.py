@@ -179,29 +179,33 @@ class CodexParser(ILogParser):
             msg_type = payload.get("type")
 
             if msg_type == "user_message":
-                yield CodexMessage(
-                    timestamp=timestamp,
+                yield CodexMessage.create(
                     content=payload.get("message", ""),
+                    timestamp=timestamp,
                     is_user=True,
                     session_id=session_id,
                     raw_data=event,
                 )
             elif msg_type == "ai_response":
-                yield CodexMessage(
-                    timestamp=timestamp,
+                yield CodexMessage.create(
                     content=payload.get("message", ""),
+                    timestamp=timestamp,
                     is_user=False,
                     session_id=session_id,
                     raw_data=event,
                 )
             elif msg_type in ("tool_call", "tool_result"):
-                yield CodexAction(
-                    timestamp=timestamp,
+                tool_payload = payload.get("tool", {}) or {}
+                details: dict[str, Any] = {
+                    "tool_name": tool_payload.get("name"),
+                    "parameters": tool_payload.get("parameters"),
+                    "result": payload.get("result"),
+                }
+                yield CodexAction.create(
                     action_type=msg_type,
-                    tool_name=payload.get("tool", {}).get("name"),
-                    parameters=payload.get("tool", {}).get("parameters"),
-                    result=payload.get("result"),
                     session_id=session_id,
+                    timestamp=timestamp,
+                    details=details,
                     raw_data=event,
                 )
 

@@ -9,7 +9,7 @@ from typing import ClassVar, Dict, Type
 from .base_types import AgentConfig, AgentFeatures
 
 
-@dataclass
+@dataclass  # pylint: disable=too-few-public-methods
 class AgentConfigData:
     """Data container for agent configuration."""
 
@@ -26,3 +26,18 @@ class AgentRegistry:
     """Global registry of available AI agents."""
 
     _agents: ClassVar[Dict[str, Type[AgentConfig]]] = {}
+
+    @classmethod
+    def register(cls, config: Type[AgentConfig]) -> None:
+        """Register an agent configuration type."""
+        cls._agents[config.agent_type] = config
+
+    @classmethod
+    def get(cls, agent_type: str) -> Type[AgentConfig] | None:
+        """Retrieve a registered agent configuration type."""
+        return cls._agents.get(agent_type)
+
+    @classmethod
+    def all(cls) -> Dict[str, Type[AgentConfig]]:
+        """Return a copy of all registered agent configuration types."""
+        return dict(cls._agents)

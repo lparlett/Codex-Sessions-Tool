@@ -5,29 +5,22 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
+from dataclasses import dataclass
 from typing import Any, Generator, Iterator, Optional
 
 from ..models.base_event import BaseEvent
 
 
+@dataclass(frozen=True)  # pylint: disable=too-few-public-methods
 class AgentLogMetadata:
     """Metadata about an agent's log file."""
 
-    def __init__(
-        self,
-        agent_type: str,
-        session_id: str,
-        timestamp: datetime,
-        workspace_path: Optional[str] = None,
-        user_id: Optional[str] = None,
-        version: Optional[str] = None,
-    ) -> None:
-        self.agent_type = agent_type
-        self.session_id = session_id
-        self.timestamp = timestamp
-        self.workspace_path = workspace_path
-        self.user_id = user_id
-        self.version = version
+    agent_type: str
+    session_id: str
+    timestamp: datetime
+    workspace_path: Optional[str] = None
+    user_id: Optional[str] = None
+    version: Optional[str] = None
 
 
 class ILogParser(ABC):

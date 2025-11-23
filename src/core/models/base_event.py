@@ -16,36 +16,9 @@ class BaseEvent(ABC):
     delegating data storage to the BaseEventData container.
     """
 
-    def __init__(
-        self,
-        agent_type: str,
-        timestamp: datetime,
-        event_type: str,
-        event_category: EventCategory,
-        priority: EventPriority = EventPriority.MEDIUM,
-        session_id: str | None = None,
-        raw_data: dict[str, Any] | None = None,
-    ) -> None:
-        """Initialize a base event.
-
-        Args:
-            agent_type: Type identifier for the AI agent
-            timestamp: When the event occurred
-            event_type: Type of event (e.g. "user_message", "agent_response")
-            event_category: High-level category for the event
-            priority: Processing/display priority for the event
-            session_id: Identifier for the agent session
-            raw_data: Original event data for audit/debugging
-        """
-        self._data = BaseEventData(
-            agent_type=agent_type,
-            timestamp=timestamp,
-            event_type=event_type,
-            event_category=event_category,
-            priority=priority,
-            session_id=session_id,
-            raw_data=raw_data,
-        )
+    def __init__(self, data: BaseEventData) -> None:
+        """Initialize a base event from validated event data."""
+        self._data = data
 
     @property
     def agent_type(self) -> str:

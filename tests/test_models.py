@@ -18,13 +18,7 @@ class TestEvent(BaseEvent):
     def __init__(self, data: BaseEventData) -> None:
         """Initialize test event."""
         super().__init__(
-            agent_type=data.agent_type,
-            timestamp=data.timestamp,
-            event_type=data.event_type,
-            event_category=data.event_category,
-            priority=data.priority,
-            session_id=data.session_id,
-            raw_data=data.raw_data
+            data
         )
 
     def to_dict(self) -> dict[str, Any]:
