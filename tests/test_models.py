@@ -15,12 +15,6 @@ from src.core.models.base_event import BaseEvent
 class TestEvent(BaseEvent):
     """A concrete test implementation of BaseEvent."""
 
-    def __init__(self, data: BaseEventData) -> None:
-        """Initialize test event."""
-        super().__init__(
-            data
-        )
-
     def to_dict(self) -> dict[str, Any]:
         """Convert event to dictionary."""
         return {
@@ -30,21 +24,23 @@ class TestEvent(BaseEvent):
             "event_category": self.event_category.value,
             "priority": self.priority.value,
             "session_id": self.session_id,
-            "raw_data": self.raw_data
+            "raw_data": self.raw_data,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TestEvent:
         """Create event from dictionary."""
-        return cls(BaseEventData(
-            agent_type=data["agent_type"],
-            timestamp=datetime.fromisoformat(data["timestamp"]),
-            event_type=data["event_type"],
-            event_category=EventCategory(data["event_category"]),
-            priority=EventPriority(data["priority"]),
-            session_id=data["session_id"],
-            raw_data=data.get("raw_data")
-        ))
+        return cls(
+            BaseEventData(
+                agent_type=data["agent_type"],
+                timestamp=datetime.fromisoformat(data["timestamp"]),
+                event_type=data["event_type"],
+                event_category=EventCategory(data["event_category"]),
+                priority=EventPriority(data["priority"]),
+                session_id=data["session_id"],
+                raw_data=data.get("raw_data"),
+            )
+        )
 
 
 def test_base_event_data_initialization(sample_timestamp: datetime) -> None:
@@ -57,7 +53,7 @@ def test_base_event_data_initialization(sample_timestamp: datetime) -> None:
         event_category=EventCategory.SYSTEM,
         priority=EventPriority.MEDIUM,
         session_id="test-123",
-        raw_data={"test": "data"}
+        raw_data={"test": "data"},
     )
 
     test_case.assertEqual(data.agent_type, "test")
@@ -77,7 +73,7 @@ def test_base_event_data_validation() -> None:
             timestamp=datetime.now(),
             event_type="test",
             event_category=EventCategory.SYSTEM,
-            session_id="test"
+            session_id="test",
         )
 
     with pytest.raises(ValueError, match="event_type.*empty"):
@@ -86,7 +82,7 @@ def test_base_event_data_validation() -> None:
             timestamp=datetime.now(),
             event_type="",  # Empty string should fail
             event_category=EventCategory.SYSTEM,
-            session_id="test"
+            session_id="test",
         )
 
 

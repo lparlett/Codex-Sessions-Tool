@@ -26,7 +26,9 @@ def sample_timestamp() -> datetime:
 
 
 @pytest.fixture
-def sample_event_data(sample_timestamp: datetime) -> BaseEventData:  # pylint: disable=redefined-outer-name
+def sample_event_data(
+    sample_timestamp: datetime,
+) -> BaseEventData:  # pylint: disable=redefined-outer-name
     """Create a sample BaseEventData for testing."""
     return BaseEventData(
         agent_type="codex",
@@ -35,12 +37,14 @@ def sample_event_data(sample_timestamp: datetime) -> BaseEventData:  # pylint: d
         event_category=EventCategory.SYSTEM,
         priority=EventPriority.MEDIUM,
         session_id="test-session-001",
-        raw_data={"test": "data"}
+        raw_data={"test": "data"},
     )
 
 
 @pytest.fixture
-def sample_codex_message(sample_timestamp: datetime) -> CodexMessage:  # pylint: disable=redefined-outer-name
+def sample_codex_message(
+    sample_timestamp: datetime,
+) -> CodexMessage:  # pylint: disable=redefined-outer-name
     """Create a sample CodexMessage for testing."""
     return CodexMessage.create(
         content="Test message",
@@ -76,8 +80,5 @@ def sample_raw_event() -> dict[str, Any]:
     return {
         "type": "event_msg",
         "timestamp": "2025-10-31T10:00:00Z",
-        "payload": {
-            "type": "user_message",
-            "message": "Test message"
-        }
+        "payload": {"type": "user_message", "message": "Test message"},
     }

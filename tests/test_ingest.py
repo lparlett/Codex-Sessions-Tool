@@ -59,21 +59,20 @@ def test_prepare_events_batch_processing(
     test_event = {
         "type": "event_msg",
         "timestamp": sample_timestamp.isoformat(),
-        "payload": {
-            "type": "user_message",
-            "message": "Test message"
-        }
+        "payload": {"type": "user_message", "message": "Test message"},
     }
 
     events = [test_event, test_event]  # Two identical events
     errors: list[ProcessingError] = []
     prepared = _prepare_events(events, sample_session_file, errors, batch_size=1)
 
-    test_case.assertEqual(len(prepared), len(events),
-                         "All valid events should be processed")
-    test_case.assertEqual(len(errors), 0,
-                         "No errors should be reported for valid events")
-    
+    test_case.assertEqual(
+        len(prepared), len(events), "All valid events should be processed"
+    )
+    test_case.assertEqual(
+        len(errors), 0, "No errors should be reported for valid events"
+    )
+
     # Check structure of prepared events
     for event in prepared:
         test_case.assertIsInstance(event, dict)
@@ -102,7 +101,7 @@ def test_session_ingester_processes_session(
     test_case.assertIsInstance(summary, dict)
     test_case.assertIn("prompts", summary)
     test_case.assertGreaterEqual(summary["prompts"], 0)
-    
+
     # Check database has expected records
     cursor = db_connection.cursor()
     cursor.execute("SELECT COUNT(*) FROM sessions")

@@ -38,11 +38,11 @@ def test_load_config_invalid_toml() -> None:
     """Test that invalid TOML raises appropriate error."""
     test_case = unittest.TestCase()
     mock_toml = "invalid [ toml"
-    
+
     with MonkeyPatch().context() as mp:
         mock_path_attrs(mp)
         mp.setattr(Path, "read_text", mock_read_text(mock_toml))
-        
+
         with test_case.assertRaises(ConfigError) as cm:
             load_config(Path("test.toml"))
         test_case.assertIn("TOML", str(cm.exception))
@@ -55,11 +55,11 @@ def test_load_config_missing_sessions() -> None:
     [other]
     value = "test"
     """
-    
+
     with MonkeyPatch().context() as mp:
         mock_path_attrs(mp)
         mp.setattr(Path, "read_text", mock_read_text(mock_toml))
-        
+
         with test_case.assertRaises(ConfigError) as cm:
             load_config(Path("test.toml"))
         test_case.assertIn("sessions", str(cm.exception))
@@ -72,11 +72,11 @@ def test_load_config_missing_root() -> None:
     [sessions]
     other = "value"
     """
-    
+
     with MonkeyPatch().context() as mp:
         mock_path_attrs(mp)
         mp.setattr(Path, "read_text", mock_read_text(mock_toml))
-        
+
         with test_case.assertRaises(ConfigError) as cm:
             load_config(Path("test.toml"))
         test_case.assertIn("root", str(cm.exception))
@@ -92,7 +92,7 @@ def test_load_config_valid(tmp_path: Path) -> None:
     [ingest]
     batch_size = 500
     """
-    
+
     with MonkeyPatch().context() as mp:
         # Set up path attributes with tmp_path
         mp.setattr(Path, "exists", lambda _: True)
@@ -117,11 +117,11 @@ def test_load_config_invalid_batch_size() -> None:
     [ingest]
     batch_size = -1
     """
-    
+
     with MonkeyPatch().context() as mp:
         mock_path_attrs(mp)
         mp.setattr(Path, "read_text", mock_read_text(mock_toml))
-        
+
         with test_case.assertRaises(ConfigError) as cm:
             load_config(Path("test.toml"))
         test_case.assertIn("batch_size", str(cm.exception))
@@ -134,7 +134,7 @@ def test_load_config_default_batch_size() -> None:
     [sessions]
     root = "~/sessions"
     """
-    
+
     with MonkeyPatch().context() as mp:
         mock_path_attrs(mp)
         mp.setattr(Path, "read_text", mock_read_text(mock_toml))
@@ -149,11 +149,13 @@ def test_load_config_nonexistent_root(tmp_path: Path) -> None:
     root = "~/sessions"
     """
     with MonkeyPatch().context() as mp:
-        mp.setattr(Path, "exists", lambda p: str(p) == "test.toml")  # Only config file exists
+        mp.setattr(
+            Path, "exists", lambda p: str(p) == "test.toml"
+        )  # Only config file exists
         mp.setattr(Path, "read_text", mock_read_text(mock_toml))
         mp.setattr(Path, "expanduser", lambda _: tmp_path / "nonexistent")
         mp.setattr(Path, "resolve", lambda s: s)
-        
+
         with pytest.raises(ConfigError, match="does not exist"):
             load_config(Path("test.toml"))
 
@@ -167,6 +169,6 @@ def test_load_config_root_not_directory() -> None:
     with MonkeyPatch().context() as mp:
         mock_path_attrs(mp, is_dir=False)  # Root path exists but is not a directory
         mp.setattr(Path, "read_text", mock_read_text(mock_toml))
-        
+
         with pytest.raises(ConfigError, match="is not a directory"):
             load_config(Path("test.toml"))
