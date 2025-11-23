@@ -33,13 +33,14 @@ class CodexConfig(AgentConfig):
             features=features or self.DEFAULT_FEATURES,
         )
 
-    def validate(self) -> bool:
+    def validate(self) -> None:
         """Validate the configuration.
 
-        Returns:
-            True if the root path exists and is readable
+        Raises:
+            ValueError: If the root path is missing or not a directory
         """
-        return self.root_path.exists() and self.root_path.is_dir()
+        if not self.root_path.exists() or not self.root_path.is_dir():
+            raise ValueError(f"Invalid Codex root path: {self.root_path}")
 
     def to_dict(self) -> dict[str, Any]:
         """Convert config to a dictionary for storage.
