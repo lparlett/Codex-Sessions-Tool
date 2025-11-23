@@ -90,7 +90,8 @@ def test_agent_config_data_validation() -> None:
     with pytest.raises(ValueError):
         AgentConfigData(agent_type="", root_path=Path.cwd())
 
-# pylint: disable=unused-argument  
+
+# pylint: disable=unused-argument
 # tmp_path kept in signature for pytest fixture flexibility
 def test_agent_registry_register_and_get(tmp_path: Path) -> None:
     """AgentRegistry should store and return config classes."""

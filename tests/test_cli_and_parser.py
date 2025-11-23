@@ -21,7 +21,9 @@ TC = unittest.TestCase()
 def test_resolve_runtime_options_debug_caps_limit() -> None:
     """Debug mode should cap limit at 2 and enable verbose."""
     args = argparse.Namespace(verbose=False, debug=True, limit=None)
-    verbose, limit = ingest_session._resolve_runtime_options(args)  # pylint: disable=protected-access
+    verbose, limit = ingest_session._resolve_runtime_options(
+        args
+    )  # pylint: disable=protected-access
     TC.assertTrue(verbose)
     TC.assertEqual(limit, 2)
 
@@ -33,7 +35,9 @@ def test_validate_db_path_rejects_missing_parent(tmp_path: Path) -> None:
         ingest_session.validate_db_path(target)
 
 
-def test_print_error_details_renders_and_counts(capsys: pytest.CaptureFixture[str]) -> None:
+def test_print_error_details_renders_and_counts(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     """_print_error_details should summarize a list of structured errors."""
     errors = [
         {"severity": "ERROR", "code": "bad", "message": "oops"},
@@ -41,7 +45,9 @@ def test_print_error_details_renders_and_counts(capsys: pytest.CaptureFixture[st
         {"severity": "ERROR", "code": "another", "message": "more"},
         {"severity": "ERROR", "code": "extra", "message": "extra"},
     ]
-    count = ingest_session._print_error_details(errors, indent="")  # pylint: disable=protected-access
+    count = ingest_session._print_error_details(
+        errors, indent=""
+    )  # pylint: disable=protected-access
     captured = capsys.readouterr().out
     TC.assertEqual(count, 4)
     TC.assertIn("ERROR/bad: oops", captured)
@@ -74,7 +80,9 @@ def test_report_many_results(capsys: pytest.CaptureFixture[str]) -> None:
             "errors": [],
         },
     ]
-    ingest_session._report_many_results(summaries, Path("db.sqlite"))  # pylint: disable=protected-access
+    ingest_session._report_many_results(
+        summaries, Path("db.sqlite")
+    )  # pylint: disable=protected-access
     captured = capsys.readouterr().out
     TC.assertIn("Ingested: file1.jsonl", captured)
     TC.assertIn("Files processed: 2", captured)
@@ -112,7 +120,11 @@ def test_render_prelude_and_groups(capsys: pytest.CaptureFixture[str]) -> None:
         {
             "user": {"timestamp": "t1", "payload": {"message": "Hi"}},
             "events": [
-                {"type": "event_msg", "timestamp": "t2", "payload": {"type": "ai_response", "message": "Hey"}}  # noqa: E501
+                {
+                    "type": "event_msg",
+                    "timestamp": "t2",
+                    "payload": {"type": "ai_response", "message": "Hey"},
+                }  # noqa: E501
             ],
         }
     ]
@@ -206,7 +218,7 @@ def test_load_config_invalid_root(tmp_path: Path) -> None:
     config_dir = tmp_path / "user"
     config_dir.mkdir()
     config_file = config_dir / "config.toml"
-    config_file.write_text("[sessions]\nroot = \"./missing\"\n", encoding="utf-8")
+    config_file.write_text('[sessions]\nroot = "./missing"\n', encoding="utf-8")
 
     with pytest.raises(ConfigError):
         load_config(config_file)
