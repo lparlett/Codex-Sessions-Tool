@@ -1,5 +1,8 @@
 """Tests for core model functionality."""
 
+# pylint: disable=duplicate-code
+# Tests intentionally mirror event serialization patterns to validate parity.
+
 from __future__ import annotations
 
 import unittest

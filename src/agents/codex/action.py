@@ -94,28 +94,32 @@ class Action(BaseEvent):
         }
 
     @classmethod
-    def create(
-        cls,
+    def create(cls, data: ActionData) -> Action:
+        """Create an Action from structured data."""
+        return cls(data)
+
+    @staticmethod
+    def build_data(
         action_type: str,
         session_id: str,
+        *,
         timestamp: datetime | None = None,
         details: dict[str, Any] | None = None,
         raw_data: dict[str, Any] | None = None,
-    ) -> Action:
-        """Factory to build an Action from primitive values."""
-        data = ActionData(
+    ) -> ActionData:
+        """Helper to build ActionData with sensible defaults."""
+        return ActionData(
             action_type=action_type,
             session_id=session_id,
             timestamp=timestamp or datetime.now(),
             details=details,
             raw_data=raw_data,
         )
-        return cls(data)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Action:
         """Create an Action instance from a dictionary."""
-        return cls(
+        return cls.create(
             ActionData(
                 action_type=data["action_type"],
                 session_id=data["session_id"],

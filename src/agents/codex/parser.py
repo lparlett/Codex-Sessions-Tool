@@ -180,19 +180,23 @@ class CodexParser(ILogParser):
 
             if msg_type == "user_message":
                 yield CodexMessage.create(
-                    content=payload.get("message", ""),
-                    timestamp=timestamp,
-                    is_user=True,
-                    session_id=session_id,
-                    raw_data=event,
+                    CodexMessage.build_data(
+                        content=payload.get("message", ""),
+                        timestamp=timestamp,
+                        is_user=True,
+                        session_id=session_id,
+                        raw_data=event,
+                    )
                 )
             elif msg_type == "ai_response":
                 yield CodexMessage.create(
-                    content=payload.get("message", ""),
-                    timestamp=timestamp,
-                    is_user=False,
-                    session_id=session_id,
-                    raw_data=event,
+                    CodexMessage.build_data(
+                        content=payload.get("message", ""),
+                        timestamp=timestamp,
+                        is_user=False,
+                        session_id=session_id,
+                        raw_data=event,
+                    )
                 )
             elif msg_type in ("tool_call", "tool_result"):
                 tool_payload = payload.get("tool", {}) or {}
@@ -202,11 +206,13 @@ class CodexParser(ILogParser):
                     "result": payload.get("result"),
                 }
                 yield CodexAction.create(
-                    action_type=msg_type,
-                    session_id=session_id,
-                    timestamp=timestamp,
-                    details=details,
-                    raw_data=event,
+                    CodexAction.build_data(
+                        action_type=msg_type,
+                        session_id=session_id,
+                        timestamp=timestamp,
+                        details=details,
+                        raw_data=event,
+                    )
                 )
 
     def _validate_base_structure(self, event_data: Any) -> bool:

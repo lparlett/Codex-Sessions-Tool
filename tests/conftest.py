@@ -52,11 +52,13 @@ def sample_codex_message(
 ) -> CodexMessage:  # pylint: disable=redefined-outer-name
     """Create a sample CodexMessage for testing."""
     return CodexMessage.create(
-        content="Test message",
-        timestamp=sample_timestamp,
-        is_user=True,
-        session_id="test-session-001",
-        raw_data={"test": "data"},
+        CodexMessage.build_data(
+            content="Test message",
+            timestamp=sample_timestamp,
+            is_user=True,
+            session_id="test-session-001",
+            raw_data={"test": "data"},
+        )
     )
 
 

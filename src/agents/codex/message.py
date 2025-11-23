@@ -87,23 +87,27 @@ class CodexMessage(BaseEvent):
         }
 
     @classmethod
-    def create(
-        cls,
+    def create(cls, data: CodexMessageData) -> CodexMessage:
+        """Create a new message instance from structured data."""
+        return cls(data)
+
+    @staticmethod
+    def build_data(
         content: str,
-        timestamp: datetime,
         is_user: bool,
         session_id: str,
+        *,
+        timestamp: datetime | None = None,
         raw_data: dict[str, Any] | None = None,
-    ) -> CodexMessage:
-        """Create a new message instance from primitive values."""
-        data = CodexMessageData(
+    ) -> CodexMessageData:
+        """Helper to build CodexMessageData with sensible defaults."""
+        return CodexMessageData(
             content=content,
             is_user=is_user,
             session_id=session_id,
-            timestamp=timestamp,
+            timestamp=timestamp or datetime.now(),
             raw_data=raw_data,
         )
-        return cls(data)
 
     @classmethod
     def from_data(cls, data: CodexMessageData) -> CodexMessage:
