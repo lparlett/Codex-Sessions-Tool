@@ -1,167 +1,146 @@
-"""Codex action event model."""
+"""Codex action event model.
 
+This module defines the Action class for representing AI agent actions in the
+Codex system. Actions include tool calls, file edits, and other operations
+that modify the workspace state.
+"""
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Dict, Optional
 
-from ...core.models.base_event import (
-    BaseEvent,
-    BaseEventData,
-    EventCategory,
-    EventPriority,
-)
+from ...core.models.base_event import BaseEvent, EventCategory, EventPriority
 
 
-@dataclass
-class CodexActionData:
-    """Data container for Codex action attributes."""
+class Action(BaseEvent):
+    """Represents an action taken by the Codex AI agent.
+    
+    An action is a specific type of event that represents something the AI
+    agent has done, such as calling a tool or editing a file. Each action
+    has both the standard event fields from BaseEvent and action-specific
+    details like the tool name, parameters and results.
 
-    action_type: str
-    timestamp: datetime
-    session_id: str
-    tool_name: str | None = None
-    parameters: dict[str, Any] | None = None
-    result: str | None = None
-    raw_data: dict[str, Any] | None = None
-
-
-class CodexAction(BaseEvent):
-    """Represents an action taken by the AI (tool use, file edit, etc)."""
+    Attributes:
+        _action_type: The type of action being performed (tool_call, etc)
+        _details: Additional contextual details about the action
+    """
 
     def __init__(
         self,
         action_type: str,
-        timestamp: datetime,
         session_id: str,
-        tool_name: str | None = None,
-        parameters: dict[str, Any] | None = None,
-        result: str | None = None,
-        raw_data: dict[str, Any] | None = None,
+        timestamp: Optional[datetime] = None,
+        details: Optional[Dict[str, Any]] = None,
+        raw_data: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Initialize a Codex action event.
 
-        Creates a new action instance using the provided attributes. For creating
-        an action from existing data, use the from_data class method instead.
-
         Args:
             action_type: Type of action (tool_call, file_edit, etc)
-            timestamp: When the action occurred
             session_id: Unique identifier for the chat session
-            tool_name: Name of tool used (if applicable)
-            parameters: Tool parameters (if applicable)
-            result: Result/output of the action
+            timestamp: When the action occurred (defaults to now)
+            details: Additional action details (tool name, params, result)
             raw_data: Original event data for audit/debugging
         """
-        self._action_data = CodexActionData(
-            action_type=action_type,
-            timestamp=timestamp,
-            session_id=session_id,
-            tool_name=tool_name,
-            parameters=parameters,
-            result=result,
-            raw_data=raw_data,
-        )
+        # Map action type to event category
+        event_category = self._get_category(action_type)
 
-        # Initialize base class with computed event info
+        # Initialize base event
         super().__init__(
             agent_type="codex",
-            timestamp=timestamp,
+            timestamp=timestamp or datetime.now(),
             event_type=f"action.{action_type}",
-            event_category=self._get_category(action_type),
+            event_category=event_category,
             priority=EventPriority.MEDIUM,
             session_id=session_id,
-            raw_data=raw_data,
+            raw_data=raw_data or {},
+        )
+
+        # Store action details
+        self._action_type = action_type
+        self._details = details or {}
+
+    @property
+    def action_type(self) -> str:
+        """Get the type of action being performed."""
+        return self._action_type
+    
+    @property
+    def tool_name(self) -> Optional[str]:
+        """Get the name of the tool if this is a tool action."""
+        return self._details.get("tool_name")
+
+    @property
+    def parameters(self) -> Optional[Dict[str, Any]]:
+        """Get the tool parameters if this is a tool action."""
+        return self._details.get("parameters")
+    
+    @property
+    def result(self) -> Optional[str]:
+        """Get the action result if available."""
+        return self._details.get("result")
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to serializable dictionary.
+        
+        Returns:
+            Dictionary with event and action-specific data including:
+                - Core event fields from BaseEvent (agent_type, etc)
+                - action_type: The type of action performed 
+                - tool_name: Name of tool used (if a tool action)
+                - parameters: Tool parameters (if a tool action)
+                - result: Action result (if available)
+        """
+        return {
+            # Core event fields 
+            "agent_type": self.agent_type,
+            "timestamp": self.timestamp.isoformat(),
+            "event_type": self.event_type,
+            "event_category": self.event_category.value,
+            "priority": self.priority.value,
+            "session_id": self.session_id,
+            "raw_data": self.raw_data,
+            # Action-specific fields
+            "action_type": self._action_type,
+            "tool_name": self.tool_name,
+            "parameters": self.parameters, 
+            "result": self.result,
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> Action:
+        """Create an Action instance from a dictionary.
+        
+        Args:
+            data: Dictionary containing serialized event data
+            
+        Returns:
+            New Action instance populated with the data
+        """
+        return cls(
+            action_type=data["action_type"],
+            session_id=data["session_id"],
+            timestamp=datetime.fromisoformat(data["timestamp"]),
+            details={
+                "tool_name": data.get("tool_name"),
+                "parameters": data.get("parameters"),
+                "result": data.get("result"),
+            },
+            raw_data=data.get("raw_data", {}),
         )
 
     @staticmethod
     def _get_category(action_type: str) -> EventCategory:
-        """Get the event category based on action type."""
+        """Get the event category based on action type.
+        
+        Args:
+            action_type: The type of action being performed
+            
+        Returns:
+            The corresponding EventCategory
+        """
         if action_type == "tool_call":
             return EventCategory.TOOL_CALL
-        elif action_type == "tool_result":
+        if action_type == "tool_result":
             return EventCategory.TOOL_RESULT
         return EventCategory.SYSTEM
-
-    @classmethod
-    def from_data(
-        cls, data: CodexActionData, base_event_data: BaseEventData | None = None
-    ) -> CodexAction:
-        """Create an action from action data.
-
-        Args:
-            data: Action data container
-            base_event_data: Optional base event data. If not provided, will be
-                created from the action data.
-
-        Returns:
-            New action instance
-        """
-        instance = cls(
-            action_type=data.action_type,
-            timestamp=data.timestamp,
-            session_id=data.session_id,
-            tool_name=data.tool_name,
-            parameters=data.parameters,
-            result=data.result,
-            raw_data=data.raw_data,
-        )
-        if base_event_data:
-            instance._data = base_event_data
-        return instance
-
-    @property
-    def action_type(self) -> str:
-        """Get the action type."""
-        return self._action_data.action_type
-
-    @property
-    def tool_name(self) -> str | None:
-        """Get the tool name if available."""
-        return self._action_data.tool_name
-
-    @property
-    def parameters(self) -> dict[str, Any] | None:
-        """Get the tool parameters if available."""
-        return self._action_data.parameters
-
-    @property
-    def result(self) -> str | None:
-        """Get the action result if available."""
-        return self._action_data.result
-
-    @property
-    def raw_session_id(self) -> str:
-        """Get the original session ID."""
-        if self._action_data.session_id is None:
-            raise ValueError("Session ID is required but was None")
-        return self._action_data.session_id
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert action to a dictionary for storage."""
-        return {
-            "agent_type": self.agent_type,
-            "timestamp": self.timestamp.isoformat(),
-            "event_type": self.event_type,
-            "action_type": self.action_type,
-            "tool_name": self.tool_name,
-            "parameters": self.parameters,
-            "result": self.result,
-            "session_id": self.session_id,
-            "raw_data": self._data.raw_data or {},
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> CodexAction:
-        """Create an action from a dictionary."""
-        action_data = CodexActionData(
-            action_type=data["action_type"],
-            timestamp=datetime.fromisoformat(data["timestamp"]),
-            session_id=data["session_id"],
-            tool_name=data.get("tool_name"),
-            parameters=data.get("parameters"),
-            result=data.get("result"),
-            raw_data=data.get("raw_data", {}),
-        )
-        return cls.from_data(action_data)
