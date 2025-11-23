@@ -17,16 +17,17 @@ clarity.
 ## Repository Structure
 
 ```bash
-cli/                 # CLI entry points and orchestration
-docs/                # Documentation and governance records
-reports/             # Parsed and redacted transparency outputs
-src/                 # Core implementation
-  parsers/           # JSONL ingestion, validation, normalization
-  models/            # Typed data structures for structured outputs
-  services/          # Shared utilities (I/O, filtering, summarization)
-tests/               # Pytest suites
-  fixtures/          # Synthetic and sanitized samples, golden outputs
-user/                # User settings and configuration
+cli/                  # CLI entry points (ingest_session.py, group_session.py)
+docs/                 # Documentation and governance records
+reports/              # Parsed and redacted transparency outputs
+src/
+  agents/             # Agent-specific models (e.g., codex action/message/config)
+  core/               # Shared base types, interfaces, and data containers
+  parsers/            # Session discovery and grouping helpers
+  services/           # Config loading, ingest pipeline, validation, sanitization
+tests/                # Pytest suites and fixtures
+  fixtures/           # Synthetic/sanitized sample session logs
+user/                 # User-provided configuration (gitignored)
 ```
 
 Input (Codex session logs) comes from a user-supplied path. The tool reads
@@ -157,7 +158,7 @@ python -m cli.group_session -o reports/session.txt
 * All tests use **pytest**; test files named `test_<module>.py`.
 * Fixtures stored in `/tests/fixtures/` with golden outputs for canonical
   parsing cases.
-* Assertions are preferred over print debugging.
+* Avoid bare `assert` statements; use unit test frameworks' assertion helpers instead of print debugging.
 * Coverage includes happy-path parsing, malformed/truncated lines, and CLI
   smoke tests that validate exit codes and report generation.
 * SQLite `:memory:` mode is used for integration tests.
@@ -255,4 +256,4 @@ ProcessingError(
 
 ---
 
-Last updated: 2025-10-30
+Last updated: 2025-11-23
