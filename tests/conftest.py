@@ -8,15 +8,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Generator
 
+# Ensure project root is on sys.path before local imports
+ROOT_DIR = Path(__file__).parent.parent.resolve()
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 import pytest
 
 from src.core.models.event_data import BaseEventData, EventCategory, EventPriority
 from src.agents.codex.models import CodexMessage
 from src.services.database import ensure_schema
-
-# Add the project root directory to the Python path
-root_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(root_dir))
 
 
 @pytest.fixture
