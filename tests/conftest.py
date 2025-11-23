@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+# pylint: disable=wrong-import-position,redefined-outer-name
+# Imports occur after sys.path manipulation to ensure local modules resolve;
+# fixtures intentionally reuse names across scopes for pytest convenience.
+
 import sqlite3
 import sys
 from datetime import datetime, timezone
