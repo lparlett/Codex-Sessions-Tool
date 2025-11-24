@@ -14,42 +14,49 @@ This roadmap outlines the path to a viable **v1.0.0** release and sketches the e
 
 ## Phase 1: Viable v1.0.0 (core transparency export)
 
-### 1. Configuration & Schema Hardening
+### Milestones
 
-- [ ] Add schema migration tooling (sqlite-utils migrations or Alembic) to evolve the database without wiping data.
-- [ ] Expose DB path and output directories in `user/config.toml`; validate paths on startup.
-- [ ] Implement automated tests for ingestion helpers (`group_by_user_messages`, `_parse_prompt_message`, `_insert_function_call`).
+- v0.4.0: Schema & ingestion hardening
+- v0.6.0: Redaction baseline + CLI
+- v0.8.0: Reporting CLI + filters
+- v0.9.0: Review UI + redaction persistence
+- v1.0.0: Packaging, docs, governance
 
-### 2. Redaction & Policy Baseline
+### Issue bundle: v0.4.0 (Schema & ingestion hardening)
 
-- [ ] Introduce a `redactions` table with prompt-level and field-level overrides (replacement text, actor, timestamp, reason).
-- [ ] Allow automatic redaction rules (e.g., regex patterns, `[redact ...]` markers) configurable via YAML/JSON.
-- [ ] Provide CLI commands to list, add, and remove redactions; ensure exports apply redactions by default.
+- [ ] Add SQLite migration tooling and document the migration flow.
+- [ ] Expose DB path and output dirs in `user/config.toml`; validate paths on startup.
+- [ ] Expand ingestion tests for `group_by_user_messages`, `_parse_prompt_message`, `_insert_function_call`.
+- [ ] CI: enforce Codecov config and ensure lint/type/test gates pass on PRs.
 
-### 3. Reporting Pipeline
+### Issue bundle: v0.6.0 (Redaction baseline + CLI)
 
-- [ ] Build a reporting CLI (`codex-tool report`) that can export:
-  - Prompts only (chronological).
-  - Prompts + agent reasoning/actions.
-  - Token usage summaries.
-  - All exports in Markdown and CSV.
-- [ ] Allow filtering by date range, repo/workspace, or session id.
-- [ ] Include transparency metadata (e.g., “entries redacted by …”).
+- [ ] Add `redactions` table (prompt/field overrides: replacement text, actor, timestamp, reason).
+- [ ] Add configurable redaction rules (regex / `[redact ...]`) via YAML/JSON.
+- [ ] CLI: list/add/remove redactions; ensure exports apply redactions by default.
+- [ ] Tests for redaction application and rule precedence.
 
-### 4. User Interface
+### Issue bundle: v0.8.0 (Reporting CLI + filters)
 
-- [ ] Implement a local review UI (Streamlit prototype) with:
-  - Session browser (list by date/repo).
-  - Prompt detail view (context, agent actions).
-  - Redaction controls (toggle/hide text, add rationale).
-- [ ] Persist UI actions back into the SQLite redactions table.
-- [ ] Provide an “Export” button that mirrors the reporting CLI.
+- [ ] Add `codex-tool report` modes: prompts-only; prompts + reasoning/actions; token summaries.
+- [ ] Support Markdown and CSV outputs.
+- [ ] Filters: date range, repo/workspace, session id.
+- [ ] Include transparency metadata (e.g., entries redacted by X).
+- [ ] Golden tests per mode/filter with redactions applied.
 
-### 5. Distribution & Documentation
+### Issue bundle: v0.9.0 (Review UI + persistence)
 
-- [ ] Package the tool via `pipx` (or a zipapp) so users can install and run from a single command.
-- [ ] Write quick-start docs covering config, ingest, review, redaction, export.
-- [ ] Add governance notes explaining data ownership, privacy, and audit trails.
+- [ ] Streamlit (or lightweight) UI: session browser, prompt detail view, agent actions.
+- [ ] Redaction controls in UI; persist to SQLite `redactions`.
+- [ ] Export button that mirrors reporting CLI behavior.
+- [ ] UI smoke tests and persistence tests.
+
+### Issue bundle: v1.0.0 (Packaging, docs, governance)
+
+- [ ] Package for easy install (pipx/zipapp); document install/upgrade.
+- [ ] Quick-start docs: config, ingest, review, redact, export.
+- [ ] Governance notes: data ownership, privacy, audit trails.
+- [ ] Release notes and final schema/doc sync.
 
 **Exit criteria for v1.0.0:**  
 
