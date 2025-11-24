@@ -85,8 +85,9 @@ def test_report_many_results(capsys: pytest.CaptureFixture[str]) -> None:
     )  # pylint: disable=protected-access
     captured = capsys.readouterr().out
     TC.assertIn("Ingested: file1.jsonl", captured)
+    TC.assertIn("Ingested: file2.jsonl", captured)
     TC.assertIn("Files processed: 2", captured)
-    TC.assertIn("rows: 3", captured)  # total rows aggregated
+    TC.assertIn("errors: 1", captured)
 
 
 def test_shorten_truncates_long_text() -> None:

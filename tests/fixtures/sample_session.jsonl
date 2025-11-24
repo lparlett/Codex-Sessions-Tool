@@ -1,4 +1,0 @@
-{"type": "session_meta", "timestamp": "2025-10-31T10:00:00Z", "payload": {"id": "test-session-001", "cwd": "/test/workspace"}}
-{"type": "event_msg", "timestamp": "2025-10-31T10:00:01Z", "payload": {"type": "user_message", "message": "## My request for Codex:\nHelp me write a test"}}
-{"type": "event_msg", "timestamp": "2025-10-31T10:00:02Z", "payload": {"type": "token_count", "rate_limits": {"primary": {"used_percent": 50, "window_minutes": 60}}}}
-{"type": "event_msg", "timestamp": "2025-10-31T10:00:03Z", "payload": {"type": "agent_reasoning", "text": "I'll help create a test structure"}}

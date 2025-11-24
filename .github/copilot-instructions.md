@@ -33,6 +33,10 @@ user/                 # User-provided configuration (gitignored)
 Input (Codex session logs) comes from a user-supplied path. The tool reads
 but does not store raw logs without explicit consent.
 
+For Copilot chat sessions (VS Code), logs are typically stored under:
+`C:\Users\<windows_user>\AppData\Roaming\Code\User\workspaceStorage\<hashed_workspace>\chatSessions\`
+Multiple files can exist under the same workspace.
+
 ---
 
 ## Core Architecture & Workflow

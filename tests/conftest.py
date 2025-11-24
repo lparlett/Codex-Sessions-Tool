@@ -65,7 +65,7 @@ def sample_codex_message(
 @pytest.fixture
 def sample_session_file(tmp_path: Path) -> Path:
     """Create a temporary copy of the sample session file."""
-    source = Path("tests/fixtures/sample_session.jsonl")
+    source = Path("tests/fixtures/codex_sample_session.jsonl")
     dest = tmp_path / "test_session.jsonl"
     dest.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
     return dest

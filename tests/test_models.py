@@ -18,6 +18,8 @@ from src.core.models.base_event import BaseEvent
 class TestEvent(BaseEvent):
     """A concrete test implementation of BaseEvent."""
 
+    __test__ = False  # Prevent pytest from treating this helper as a test class
+
     def to_dict(self) -> dict[str, Any]:
         """Convert event to dictionary."""
         return {
