@@ -159,7 +159,9 @@ def _table_counts(conn: sqlite3.Connection, tables: Iterable[str]) -> dict[str, 
     for table in tables:
         if table not in TABLES_IN_COPY_ORDER:
             raise SystemExit(f"Unexpected table name: {table}")
-        cursor.execute(f"SELECT COUNT(*) FROM {table}")  # nosec B608 validated allowlist
+        cursor.execute(
+            f"SELECT COUNT(*) FROM {table}"
+        )  # nosec B608 validated allowlist
         counts[table] = int(cursor.fetchone()[0])
     return counts
 
@@ -183,7 +185,9 @@ def _table_counts_postgres(conn: Any, tables: Iterable[str]) -> dict[str, int]:
             if not exists:
                 counts[table] = 0
                 continue
-            cur.execute(f"SELECT COUNT(*) FROM {table}")  # nosec B608 validated allowlist
+            cur.execute(
+                f"SELECT COUNT(*) FROM {table}"
+            )  # nosec B608 validated allowlist
             row = cur.fetchone()
             counts[table] = int(row[0] if row else 0)
     return counts
@@ -241,7 +245,9 @@ def _copy_table(
     """Copy a single table from SQLite to Postgres in batches."""
 
     from psycopg2 import sql  # pylint: disable=import-outside-toplevel
-    from psycopg2.extras import execute_values  # pylint: disable=import-outside-toplevel
+    from psycopg2.extras import (
+        execute_values,
+    )  # pylint: disable=import-outside-toplevel
 
     src_cur = sqlite_conn.cursor()
     if table not in TABLES_IN_COPY_ORDER:

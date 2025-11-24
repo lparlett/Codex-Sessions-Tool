@@ -1,10 +1,9 @@
-# Purpose: command-line entry for ingesting Codex session logs into
-#           SQLite storage.
-# Author: Codex with Lauren Parlett
-# Date: 2025-10-30
-# Related tests: TBD (planned)
+"""CLI to ingest Codex session logs into SQLite.
 
-"""CLI to ingest Codex session logs into SQLite."""
+Purpose: Command-line entry for ingesting Codex session logs into SQLite storage.
+Author: Codex with Lauren Parlett
+Date: 2025-10-30
+"""
 
 from __future__ import annotations
 

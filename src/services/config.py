@@ -1,9 +1,9 @@
-# Purpose: load and validate user configuration for locating Codex session data.
-# Author: Codex with Lauren Parlett
-# Date: 2025-10-30
-# Related tests: TBD (planned)
+"""Load user configuration for codex_sessions_tool.
 
-"""Load user configuration for codex_sessions_tool."""
+Purpose: Load and validate user configuration for locating Codex session data.
+Author: Codex with Lauren Parlett
+Date: 2025-10-30
+"""
 
 from __future__ import annotations
 
@@ -28,21 +28,21 @@ class ConfigError(RuntimeError):
 
 
 @dataclass(frozen=True)
-class SessionsConfig:
-    """User-defined settings for locating Codex session logs."""
-
-    sessions_root: Path
-    ingest_batch_size: int = 1000
-    database: "DatabaseConfig" = field(default_factory=lambda: DatabaseConfig())
-
-
-@dataclass(frozen=True)
 class DatabaseConfig:
     """Database connection preferences."""
 
     backend: str = "sqlite"  # sqlite or postgres
     sqlite_path: Path = Path("reports") / "session_data.sqlite"
     postgres_dsn: str | None = None
+
+
+@dataclass(frozen=True)
+class SessionsConfig:
+    """User-defined settings for locating Codex session logs."""
+
+    sessions_root: Path
+    ingest_batch_size: int = 1000
+    database: DatabaseConfig = field(default_factory=DatabaseConfig)
 
 
 def load_config(config_path: Path | None = None) -> SessionsConfig:

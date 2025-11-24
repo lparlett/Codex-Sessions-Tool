@@ -1,10 +1,11 @@
-# Purpose: encapsulate event handling helpers for session ingest.
-# Author: Codex with Lauren Parlett
-# Date: 2025-10-30
-# Related tests: TBD (planned)
-# pylint: disable=duplicate-code
+"""Helper functions for processing grouped Codex session events.
 
-"""Helper functions for processing grouped Codex session events."""
+Purpose: Encapsulate event handling helpers for session ingest.
+Author: Codex with Lauren Parlett
+Date: 2025-10-30
+"""
+
+# pylint: disable=duplicate-code
 
 from __future__ import annotations
 
