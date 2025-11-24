@@ -1,5 +1,7 @@
 """Unit tests for CLI helpers and session parsing utilities."""
 
+# pylint: disable=import-error,protected-access
+
 from __future__ import annotations
 
 import argparse

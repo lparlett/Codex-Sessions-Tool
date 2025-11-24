@@ -1,5 +1,7 @@
 """Tests for parser interface definitions (AI-assisted by Codex GPT-5)."""
 
+# pylint: disable=import-error,too-few-public-methods
+
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
@@ -62,8 +64,7 @@ class DummyParser(ILogParser):
         yield DummyEvent(data)
 
     def find_log_files(self, root_path: Path) -> Generator[Path, None, None]:
-        for path in sorted(root_path.glob("*.jsonl")):
-            yield path
+        yield from sorted(root_path.glob("*.jsonl"))
 
     def validate_event(self, event_data: dict[str, Any]) -> bool:
         return bool(event_data.get("valid"))
@@ -92,7 +93,7 @@ def test_ilogparser_requires_abstracts() -> None:
             return "partial"
 
     with pytest.raises(TypeError):
-        PartialParser()  # type: ignore[abstract]
+        PartialParser()  # type: ignore[abstract]  # pylint: disable=abstract-class-instantiated
 
 
 def test_dummy_parser_metadata_and_agent_type(tmp_path: Path) -> None:

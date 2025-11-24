@@ -1,0 +1,7 @@
+# Top-level EditorConfig to enforce LF endings and UTF-8 encoding (AI-assisted).
+root = true
+
+[*]
+end_of_line = lf
+charset = utf-8
+insert_final_newline = true

@@ -1,5 +1,7 @@
 """Tests for validation and sanitization helpers."""
 
+# pylint: disable=duplicate-code,import-error
+
 from __future__ import annotations
 
 import unittest

@@ -1,5 +1,7 @@
 """Tests for db_utils and event_handlers helpers (AI-assisted by Codex GPT-5)."""
 
+# pylint: disable=import-error
+
 from __future__ import annotations
 
 import sqlite3

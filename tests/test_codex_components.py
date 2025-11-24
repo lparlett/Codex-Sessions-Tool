@@ -1,5 +1,7 @@
 """Tests for Codex action, message, and configuration components."""
 
+# pylint: disable=import-error
+
 from __future__ import annotations
 
 from pathlib import Path

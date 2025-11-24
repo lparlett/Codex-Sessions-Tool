@@ -1,5 +1,7 @@
 """Tests for agent configuration models."""
 
+# pylint: disable=import-error
+
 from __future__ import annotations
 
 import unittest

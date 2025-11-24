@@ -1,5 +1,7 @@
 """Tests for CodexParser implementation (AI-assisted by Codex GPT-5)."""
 
+# pylint: disable=import-error,protected-access
+
 from __future__ import annotations
 
 import unittest
@@ -171,9 +173,9 @@ def test_validate_event_branches() -> None:
         )
     )
     TC.assertFalse(
-        parser._validate_base_structure(
+        parser._validate_base_structure(  # pylint: disable=protected-access
             {"type": "event_msg"}
-        )  # pylint: disable=protected-access
+        )
     )
     TC.assertFalse(
         parser._validate_message_event(  # pylint: disable=protected-access

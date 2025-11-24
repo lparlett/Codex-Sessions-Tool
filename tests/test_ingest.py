@@ -1,5 +1,7 @@
 """Tests for session ingestion functionality."""
 
+# pylint: disable=import-error,protected-access
+
 from __future__ import annotations
 
 import json
@@ -226,9 +228,9 @@ def test_ensure_file_row_resets_existing(tmp_path: Path) -> None:
     session_file = tmp_path / "session.jsonl"
     session_file.write_text("{}", encoding="utf-8")
 
-    file_id = ingest._ensure_file_row(
+    file_id = ingest._ensure_file_row(  # pylint: disable=protected-access
         conn, session_file
-    )  # pylint: disable=protected-access
+    )
     conn.execute(
         "INSERT INTO prompts (file_id, prompt_index) VALUES (?, ?)",
         (file_id, 1),
@@ -237,9 +239,9 @@ def test_ensure_file_row_resets_existing(tmp_path: Path) -> None:
         "INSERT INTO sessions (file_id) VALUES (?)",
         (file_id,),
     )
-    reused_id = ingest._ensure_file_row(
+    reused_id = ingest._ensure_file_row(  # pylint: disable=protected-access
         conn, session_file
-    )  # pylint: disable=protected-access
+    )
     assert reused_id == file_id
     assert conn.execute("SELECT COUNT(*) FROM prompts").fetchone()[0] == 0
     assert conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] == 0

@@ -1,5 +1,7 @@
 """Tests for configuration loading and validation."""
 
+# pylint: disable=import-error
+
 from __future__ import annotations
 
 import unittest

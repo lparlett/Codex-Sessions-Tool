@@ -1,5 +1,7 @@
 """Test fixtures and configuration."""
 
+# pylint: disable=import-error
+
 from __future__ import annotations
 
 # pylint: disable=wrong-import-position,redefined-outer-name
