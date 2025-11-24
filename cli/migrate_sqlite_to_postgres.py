@@ -5,6 +5,8 @@ Author: Codex with Lauren Parlett
 Date: 2025-11-24
 """
 
+# pylint: disable=import-error,import-outside-toplevel
+
 from __future__ import annotations
 
 import argparse
