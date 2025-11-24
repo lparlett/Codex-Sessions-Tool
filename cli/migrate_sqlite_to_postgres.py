@@ -159,9 +159,7 @@ def _table_counts(conn: sqlite3.Connection, tables: Iterable[str]) -> dict[str, 
     for table in tables:
         if table not in TABLES_IN_COPY_ORDER:
             raise SystemExit(f"Unexpected table name: {table}")
-        cursor.execute(
-            f"SELECT COUNT(*) FROM {table}"
-        )  # nosec B608 validated allowlist
+        cursor.execute(f"SELECT COUNT(*) FROM {table}")  # nosec safe due to allowlist
         counts[table] = int(cursor.fetchone()[0])
     return counts
 
@@ -185,9 +183,7 @@ def _table_counts_postgres(conn: Any, tables: Iterable[str]) -> dict[str, int]:
             if not exists:
                 counts[table] = 0
                 continue
-            cur.execute(
-                f"SELECT COUNT(*) FROM {table}"
-            )  # nosec B608 validated allowlist
+            cur.execute(f"SELECT COUNT(*) FROM {table}")  # nosec safe due to allowlist
             row = cur.fetchone()
             counts[table] = int(row[0] if row else 0)
     return counts
