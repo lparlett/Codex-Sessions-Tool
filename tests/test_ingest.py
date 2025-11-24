@@ -383,6 +383,7 @@ def test_process_events_covers_all_branches(tmp_path: Path) -> None:
     ]
     counts = _process_events(
         conn,
+        int(file_id),
         prompt_id,
         events,  # type: ignore[arg-type]
     )  # pylint: disable=protected-access

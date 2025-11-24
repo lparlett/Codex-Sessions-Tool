@@ -51,6 +51,20 @@ from src.services.validation import EventValidationError, validate_event
 logger = logging.getLogger(__name__)
 
 
+def build_event_handler_deps() -> EventHandlerDeps:
+    """Return the default EventHandlerDeps wired to db_utils helpers."""
+
+    return EventHandlerDeps(
+        insert_event=insert_event,
+        insert_token=insert_token,
+        insert_turn_context=insert_turn_context,
+        insert_agent_reasoning=insert_agent_reasoning,
+        insert_function_plan=insert_function_plan,
+        insert_function_call=insert_function_call,
+        update_function_call_output=update_function_call_output,
+    )
+
+
 def validate_jsonl_event(event: Any) -> dict[str, Any]:
     """Wrapper around core validation to keep ingest-specific semantics."""
 
@@ -280,15 +294,7 @@ def _process_events(
 ) -> dict[str, int]:
     """Process events for a prompt and populate child tables."""
 
-    deps = EventHandlerDeps(
-        insert_event=insert_event,
-        insert_token=insert_token,
-        insert_turn_context=insert_turn_context,
-        insert_agent_reasoning=insert_agent_reasoning,
-        insert_function_plan=insert_function_plan,
-        insert_function_call=insert_function_call,
-        update_function_call_output=update_function_call_output,
-    )
+    deps = build_event_handler_deps()
     processor = EventProcessor(
         deps=deps,
         conn=conn,

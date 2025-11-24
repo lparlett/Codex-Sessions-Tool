@@ -44,6 +44,7 @@ from src.parsers.handlers.event_handlers import (
     handle_response_item_event,
     handle_turn_context_event,
 )
+from src.services.ingest import build_event_handler_deps
 from src.services.database import ensure_schema, get_connection
 
 TC = unittest.TestCase()
@@ -305,15 +306,7 @@ def test_insert_helpers_persist_rows(tmp_path: Path) -> None:
 def _deps_with_real_inserts() -> EventHandlerDeps:
     """Create EventHandlerDeps wired to real db_utils inserts."""
 
-    return EventHandlerDeps(
-        insert_event=insert_event,
-        insert_token=insert_token,
-        insert_turn_context=insert_turn_context,
-        insert_agent_reasoning=insert_agent_reasoning,
-        insert_function_plan=insert_function_plan,
-        insert_function_call=insert_function_call,
-        update_function_call_output=update_function_call_output,
-    )
+    return build_event_handler_deps()
 
 
 def test_handle_event_msg_branches(tmp_path: Path) -> None:

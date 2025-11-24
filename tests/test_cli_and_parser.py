@@ -14,6 +14,7 @@ import pytest
 from cli import ingest_session
 from cli import group_session
 from src.parsers import session_parser
+from src.services import ingest
 from src.services.config import ConfigError, SessionsConfig, load_config
 from src.services.ingest import SessionSummary
 
@@ -58,30 +59,18 @@ def test_print_error_details_renders_and_counts(
 
 def test_report_many_results(capsys: pytest.CaptureFixture[str]) -> None:
     """_report_many_results should aggregate totals and print them."""
-    summaries: list[SessionSummary] = [
-        {
-            "session_file": "file1.jsonl",
-            "file_id": 1,
-            "prompts": 0,
-            "token_messages": 0,
-            "turn_context_messages": 0,
-            "agent_reasoning_messages": 0,
-            "function_plan_messages": 0,
-            "function_calls": 0,
-            "errors": [{"severity": "ERROR", "code": "x", "message": "m"}],
-        },
-        {
-            "session_file": "file2.jsonl",
-            "file_id": 2,
-            "prompts": 0,
-            "token_messages": 0,
-            "turn_context_messages": 0,
-            "agent_reasoning_messages": 0,
-            "function_plan_messages": 0,
-            "function_calls": 0,
-            "errors": [],
-        },
-    ]
+    s1: SessionSummary = (
+        ingest._create_empty_summary(  # pylint: disable=protected-access
+            Path("file1.jsonl"), 1
+        )
+    )
+    s1["errors"] = [{"severity": "ERROR", "code": "x", "message": "m"}]
+    s2: SessionSummary = (
+        ingest._create_empty_summary(  # pylint: disable=protected-access
+            Path("file2.jsonl"), 2
+        )
+    )
+    summaries: list[SessionSummary] = [s1, s2]
     ingest_session._report_many_results(
         summaries, Path("db.sqlite")
     )  # pylint: disable=protected-access
