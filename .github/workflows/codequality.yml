@@ -52,6 +52,6 @@ jobs:
         with:
           files: ./coverage.xml  # Use files (plural) instead of file
           fail_ci_if_error: true
-          codecov_yml: ./codecov.yml
+          codecov_yml_path: ./codecov.yml
           token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true  # Add debug output
