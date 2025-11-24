@@ -29,6 +29,10 @@ This roadmap outlines the path to a viable **v1.0.0** release and sketches the e
 - [ ] Expand ingestion tests for `group_by_user_messages`, `_parse_prompt_message`, `_insert_function_call`.
 - [ ] CI: enforce Codecov config and ensure lint/type/test gates pass on PRs.
 
+**Why migrate beyond SQLite?**
+
+SQLite stays the default for single-user, local ingest, but we need a path to a server database (PostgreSQL) for team use and larger datasets. Reasons: better concurrency for simultaneous ingests/reviews, role-based access controls for sensitive logs, WAL-based durability, easier backup/restore, and managed storage that will not hit file-lock limits on Windows. Migration tooling will let users lift existing SQLite data into Postgres without losing audit trails.
+
 ### Issue bundle: v0.6.0 (Redaction baseline + CLI)
 
 - [ ] Add `redactions` table (prompt/field overrides: replacement text, actor, timestamp, reason).
