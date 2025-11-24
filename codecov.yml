@@ -1,0 +1,31 @@
+# AI-assisted: Generated with Codex GPT-5 on 2025-11-24.
+
+coverage:
+  status:
+    project:
+      default:
+        target: 90%
+        threshold: 2%
+    patch:
+      default:
+        target: 90%
+        threshold: 2%
+
+comment:
+  layout: "reach,diff,flags,files,footer"
+  behavior: default
+
+ignore:
+  - "tests/*"
+  - "docs/*"
+  - "user/*"
+  - "reports/*"
+
+parsers:
+  coverage:
+    gcov:
+      branch_detection:
+        conditional: true
+        loop: true
+        method: true
+        macro: true
