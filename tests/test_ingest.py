@@ -15,20 +15,22 @@ from typing import Any
 import pytest
 from pytest import raises
 
+from src.parsers.handlers.db_utils import insert_prompt
 from src.services import ingest
 from src.services.ingest import (
     ErrorSeverity,
-    ProcessingErrorAction,
     ProcessingError,
+    ProcessingErrorAction,
+    SanitizationError,
     SessionIngester,
+    _build_prompt_insert,
     _prepare_events,
     _process_events,
-    _build_prompt_insert,
     ingest_session_file,
     sanitize_json_for_storage,
-    SanitizationError,
 )
-from src.parsers.handlers.db_utils import insert_prompt
+
+TC = unittest.TestCase()
 
 
 @pytest.fixture(name="sample_session_file")
@@ -206,7 +208,7 @@ def test_process_events_in_batches_limits_size() -> None:
     """Ensure batches are emitted with the requested size."""
     events = ({"type": "event_msg", "payload": {}} for _ in range(5))
     batches = list(ingest.process_events_in_batches(events, batch_size=2))
-    assert [len(batch) for batch in batches] == [2, 2, 1]
+    TC.assertEqual([len(batch) for batch in batches], [2, 2, 1])
 
 
 def test_prepare_events_filters_invalid(sample_session_file: Path) -> None:
@@ -216,9 +218,15 @@ def test_prepare_events_filters_invalid(sample_session_file: Path) -> None:
         {"type": "event_msg", "payload": "bad"},  # invalid payload type
     ]
     errors: list[ProcessingError] = []
-    prepared = _prepare_events(raw_events, sample_session_file, errors, batch_size=1)
-    assert len(prepared) == 1
-    assert errors and errors[0].code == "invalid_event"
+    prepared = _prepare_events(
+        raw_events,  # type: ignore[arg-type]
+        sample_session_file,
+        errors,
+        batch_size=1,
+    )
+    TC.assertEqual(len(prepared), 1)
+    TC.assertTrue(errors)
+    TC.assertEqual(errors[0].code, "invalid_event")
 
 
 def test_ensure_file_row_resets_existing(tmp_path: Path) -> None:
@@ -242,9 +250,9 @@ def test_ensure_file_row_resets_existing(tmp_path: Path) -> None:
     reused_id = ingest._ensure_file_row(  # pylint: disable=protected-access
         conn, session_file
     )
-    assert reused_id == file_id
-    assert conn.execute("SELECT COUNT(*) FROM prompts").fetchone()[0] == 0
-    assert conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] == 0
+    TC.assertEqual(reused_id, file_id)
+    TC.assertEqual(conn.execute("SELECT COUNT(*) FROM prompts").fetchone()[0], 0)
+    TC.assertEqual(conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0], 0)
     conn.close()
 
 
@@ -266,7 +274,7 @@ def test_ingest_single_session_rolls_back_on_failure(
             conn,
             session_file,
         )
-    assert conn.execute("SELECT COUNT(*) FROM files").fetchone()[0] == 0
+    TC.assertEqual(conn.execute("SELECT COUNT(*) FROM files").fetchone()[0], 0)
     conn.close()
 
 
@@ -288,7 +296,7 @@ def test_ingest_sessions_in_directory_handles_limits(
             batch_size=2,
         )
     )
-    assert len(summaries) == 1
+    TC.assertEqual(len(summaries), 1)
 
 
 def test_ingest_sessions_in_directory_raises_on_empty(tmp_path: Path) -> None:
@@ -321,10 +329,10 @@ def test_log_processing_error_and_serialization(
     with caplog.at_level(logging.ERROR):
         ingest._log_processing_error(error)  # pylint: disable=protected-access
     serialized = ingest.serialize_processing_error(error)
-    assert "invalid_event" in caplog.text
-    assert serialized["file_path"].endswith("test_session.jsonl")
-    assert serialized["line_number"] == 5
-    assert serialized["context"]["event"]["payload"] == "bad"
+    TC.assertIn("invalid_event", caplog.text)
+    TC.assertTrue(serialized["file_path"].endswith("test_session.jsonl"))
+    TC.assertEqual(serialized["line_number"], 5)
+    TC.assertEqual(serialized["context"]["event"]["payload"], "bad")
 
 
 def test_build_prompt_insert_handles_missing_payload(tmp_path: Path) -> None:
@@ -337,7 +345,7 @@ def test_build_prompt_insert_handles_missing_payload(tmp_path: Path) -> None:
         1,
         {"timestamp": "t1", "payload": "not a dict"},
     )
-    assert insert.message == ""
+    TC.assertEqual(insert.message, "")
     conn.close()
 
 
@@ -348,6 +356,8 @@ def test_process_events_covers_all_branches(tmp_path: Path) -> None:
     file_id = conn.execute(
         "INSERT INTO files (path) VALUES (?)", ("file.jsonl",)
     ).lastrowid
+    if file_id is None:
+        raise RuntimeError("Failed to insert file row")
     prompt_insert = _build_prompt_insert(  # pylint: disable=protected-access
         conn,
         int(file_id),
@@ -372,11 +382,13 @@ def test_process_events_covers_all_branches(tmp_path: Path) -> None:
         },
     ]
     counts = _process_events(
-        conn, prompt_id, events
+        conn,
+        prompt_id,
+        events,  # type: ignore[arg-type]
     )  # pylint: disable=protected-access
-    assert counts["turn_context_messages"] == 1
-    assert counts["function_plan_messages"] == 1
-    assert counts["function_calls"] == 1
+    TC.assertEqual(counts["turn_context_messages"], 1)
+    TC.assertEqual(counts["function_plan_messages"], 1)
+    TC.assertEqual(counts["function_calls"], 1)
     conn.close()
 
 
@@ -384,4 +396,4 @@ def test_ingest_session_file_success(sample_session_file: Path, tmp_path: Path) 
     """ingest_session_file should return summary on success."""
     db_path = tmp_path / "ok.sqlite"
     summary = ingest_session_file(sample_session_file, db_path, batch_size=2)
-    assert summary["prompts"] >= 0
+    TC.assertGreaterEqual(summary["prompts"], 0)
