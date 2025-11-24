@@ -142,7 +142,7 @@ def _open_postgres(dsn: str) -> Any:
     """Open Postgres connection lazily importing psycopg2."""
 
     try:
-        import psycopg2  # pylint: disable=import-outside-toplevel
+        import psycopg2  # type: ignore[import-untyped]  # pylint: disable=import-outside-toplevel
     except ModuleNotFoundError as exc:  # pragma: no cover - requires driver install
         raise SystemExit(
             "psycopg2 is required for migration. Install dependencies and retry."
@@ -242,10 +242,8 @@ def _copy_table(
 ) -> None:
     """Copy a single table from SQLite to Postgres in batches."""
 
-    from psycopg2 import sql  # pylint: disable=import-outside-toplevel
-    from psycopg2.extras import (
-        execute_values,
-    )  # pylint: disable=import-outside-toplevel
+    from psycopg2 import sql  # type: ignore[import-untyped]  # pylint: disable=import-outside-toplevel
+    from psycopg2.extras import execute_values  # type: ignore[import-untyped]  # pylint: disable=import-outside-toplevel
 
     src_cur = sqlite_conn.cursor()
     if table not in TABLES_IN_COPY_ORDER:
