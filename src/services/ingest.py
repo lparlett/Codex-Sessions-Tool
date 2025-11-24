@@ -233,6 +233,7 @@ class EventProcessor:
 
     deps: EventHandlerDeps
     conn: Any
+    file_id: int
     prompt_id: int
     counts: dict[str, int] = field(
         default_factory=lambda: {
@@ -255,6 +256,7 @@ class EventProcessor:
             event_type = event.get("type")
             context = EventContext(
                 conn=self.conn,
+                file_id=self.file_id,
                 prompt_id=self.prompt_id,
                 timestamp=event.get("timestamp"),
                 payload=payload,
@@ -272,6 +274,7 @@ class EventProcessor:
 
 def _process_events(
     conn: Connection,
+    file_id: int,
     prompt_id: int,
     events: Iterable[dict],
 ) -> dict[str, int]:
@@ -286,7 +289,12 @@ def _process_events(
         insert_function_call=insert_function_call,
         update_function_call_output=update_function_call_output,
     )
-    processor = EventProcessor(deps=deps, conn=conn, prompt_id=prompt_id)
+    processor = EventProcessor(
+        deps=deps,
+        conn=conn,
+        file_id=file_id,
+        prompt_id=prompt_id,
+    )
     return processor.process(events)
 
 
@@ -413,7 +421,12 @@ class SessionIngester:
                 group["user"],
             )
             prompt_id = insert_prompt(prompt_insert)
-            counts = _process_events(self.conn, prompt_id, group["events"])
+            counts = _process_events(
+                self.conn,
+                self.file_id,
+                prompt_id,
+                group["events"],
+            )
             _update_summary_counts(self.summary, counts)
 
     def _finalize_summary(self) -> None:

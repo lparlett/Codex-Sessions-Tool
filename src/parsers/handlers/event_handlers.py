@@ -48,6 +48,7 @@ class EventContext:
     """Container for event-specific data to reduce argument counts."""
 
     conn: Any
+    file_id: int
     prompt_id: int
     timestamp: str | None
     payload: dict
@@ -102,6 +103,7 @@ def handle_event_msg(
     subtype = event_context.payload.get("type")
     insert_context = EventInsert(
         conn=event_context.conn,
+        file_id=event_context.file_id,
         prompt_id=event_context.prompt_id,
         timestamp=event_context.timestamp,
         payload=event_context.payload,
@@ -152,6 +154,7 @@ def handle_turn_context_event(
 
     insert_context = EventInsert(
         conn=event_context.conn,
+        file_id=event_context.file_id,
         prompt_id=event_context.prompt_id,
         timestamp=event_context.timestamp,
         payload=event_context.payload,
@@ -175,6 +178,7 @@ def handle_response_item_event(
     if subtype == "function_call":
         insert_context = EventInsert(
             conn=event_context.conn,
+            file_id=event_context.file_id,
             prompt_id=event_context.prompt_id,
             timestamp=event_context.timestamp,
             payload=event_context.payload,
@@ -202,6 +206,7 @@ def handle_response_item_event(
         if row_id is None:
             insert_context = EventInsert(
                 conn=event_context.conn,
+                file_id=event_context.file_id,
                 prompt_id=event_context.prompt_id,
                 timestamp=None,
                 payload={},
@@ -235,6 +240,7 @@ def _record_agent_reasoning(
     deps.insert_agent_reasoning(
         AgentReasoningInsert(
             conn=insert_context.conn,
+            file_id=insert_context.file_id,
             prompt_id=insert_context.prompt_id,
             timestamp=insert_context.timestamp,
             payload=insert_context.payload,
@@ -256,6 +262,7 @@ def _register_function_call(
     row_id = deps.insert_function_call(
         FunctionCallInsert(
             conn=insert_context.conn,
+            file_id=insert_context.file_id,
             prompt_id=insert_context.prompt_id,
             timestamp=insert_context.timestamp,
             payload=insert_context.payload,

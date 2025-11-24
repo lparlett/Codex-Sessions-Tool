@@ -278,6 +278,7 @@ class EventInsert:
     """Context for inserting an event related to a prompt."""
 
     conn: Any
+    file_id: int
     prompt_id: int
     timestamp: str | None
     payload: dict
@@ -302,7 +303,7 @@ def insert_event(ctx: EventInsert) -> None:
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """,
         (
-            ctx.prompt_id,
+            ctx.file_id,
             ctx.timestamp,
             ctx.payload.get("type", "unknown"),
             ctx.payload.get("category", "other"),

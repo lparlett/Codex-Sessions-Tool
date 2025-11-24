@@ -81,6 +81,21 @@ class ErrorSeverity(Enum):
 All errors must be logged with severity and context, avoid leaking sensitive
 data, and be included in ingestion summaries.
 
+### PowerShell tips
+
+* Use parentheses for index ranges when calling `Select-Object -Index (start..end)`; literal `10..25` without parentheses is parsed as a string.
+* Prefer `python -c "<script>"` for quick transformations; multiline scripts are easiest via a here-string (`$script = @'...'@; python -c $script`) to avoid escaping.
+* When editing files via PowerShell loops, read to an array, modify, then `Set-Content`—avoids quoting issues compared to inline `sed`/`perl`.
+* Always set `Set-Location -Path ...` inside each command instead of relying on `cd`, because the CLI resets the working directory per invocation.
+* If you need literal backticks inside python strings, escape them aggressively (`\``) or build the snippet using triple quotes in Python to reduce escaping overhead.
+
+### Encoding & line endings
+
+* Default `python -c "..."` writes use the shell’s code page (cp1252 on Windows). When emitting Unicode (e.g., arrows), call `Path.write_text(..., encoding="utf-8")` or add `# -*- coding: utf-8 -*-` to temp scripts.
+* Normalize files with `text.splitlines()` and join using `"\n".join(...) + "\n"` to avoid CRLF/LF oscillation, but ensure you never clobber binary blobs—only use on text sources.
+* When replacing large blocks via one-off scripts, write the script to a temp file and run it (avoids quoting issues) and verify the result with `git diff` before proceeding.
+* Never overwrite a file with an empty string; if a transformation fails, restore from `git checkout -- path` immediately rather than re-running on a zero-length file.
+
 ---
 
 ## Codex Sessions Log Files
@@ -250,13 +265,40 @@ ProcessingError(
 * Do not modify `.gitignore`, `.gitattributes`, or `.gitmodules` without
   approval.
 
+### Branch structure
+
+* **main** — always stable, production-ready code  
+* **release/X.Y.Z** — branch from `main`  
+  * Used to integrate multiple features, test, and prepare for tagging  
+* **feature/short-slug** — branch from a current `release/X.Y.Z` branch  
+  * Used for developing or refactoring specific features or fixes  
+  * When the feature is complete and verified, merge it back into that same release branch immediately.
+  * The release branch should therefore accumulate all completed features.
+* Subsequent features for the same release must branch from the updated release branch so they include all previously merged work.
+* Merge completed `release/X.Y.Z` branches back into `main` when verified
+* When the release is ready, merge the release branch back into `main` (and tag as needed) before starting the next release.
+
+### Merging & tagging
+
+* Prefer **squash merges** for feature branches (to keep history readable)
+* Tag the final commit on `main` as `vX.Y.Z` upon release
+* Delete merged branches after confirmation to keep the repo tidy
+
 ### Documentation hints
 
-* Each release should have a matching entry in `CHANGELOG.md`.
-* Include the related issue or PR number in the commit body when available.
-* Treat commits as part of the project's provenance record.
-* Include AI-assisted code attribution in the commit body, referencing the
-  prompt(s) and model used.
+* Each release should have a matching entry in `CHANGELOG.md`
+* Include the related issue or PR number in the commit body when available
+* Treat commits as part of the project’s provenance record
+* Include AI-assisted code attribution in the commit body, referencing the prompt(s) and model used
+
+### Issue and milestone linkage
+
+* Each feature or enhancement must have a corresponding **GitHub issue**.
+* The **issue number** defines the branch name:  
+  * Example: `feature/17-notes-viewer`
+* Assign each issue to the appropriate **milestone** (e.g., `v0.2.0`), which maps to the `release/0.2.0` branch.
+* Reference the issue in all commits and PRs using the format `Refs #17` or `Closes #17` as appropriate.
+* Do not merge feature branches that are not tied to an issue and milestone.
 
 ---
 

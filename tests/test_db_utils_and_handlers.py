@@ -201,7 +201,8 @@ def test_insert_helpers_persist_rows(tmp_path: Path) -> None:
     insert_event(
         EventInsert(
             conn=conn,
-            prompt_id=file_id,  # events table expects file id
+            file_id=file_id,
+            prompt_id=prompt_id,
             timestamp="2025-10-31T10:00:02Z",
             payload={"type": "event_msg", "priority": "high", "category": "test"},
             raw={"raw": True},
@@ -210,6 +211,7 @@ def test_insert_helpers_persist_rows(tmp_path: Path) -> None:
     insert_token(
         EventInsert(
             conn=conn,
+            file_id=file_id,
             prompt_id=prompt_id,
             timestamp="2025-10-31T10:00:03Z",
             payload={
@@ -228,6 +230,7 @@ def test_insert_helpers_persist_rows(tmp_path: Path) -> None:
     insert_turn_context(
         EventInsert(
             conn=conn,
+            file_id=file_id,
             prompt_id=prompt_id,
             timestamp="2025-10-31T10:00:04Z",
             payload={
@@ -241,6 +244,7 @@ def test_insert_helpers_persist_rows(tmp_path: Path) -> None:
     insert_agent_reasoning(
         AgentReasoningInsert(
             conn=conn,
+            file_id=file_id,
             prompt_id=prompt_id,
             timestamp="2025-10-31T10:00:05Z",
             payload={"text": "thinking"},
@@ -251,6 +255,7 @@ def test_insert_helpers_persist_rows(tmp_path: Path) -> None:
     insert_function_plan(
         EventInsert(
             conn=conn,
+            file_id=file_id,
             prompt_id=prompt_id,
             timestamp="2025-10-31T10:00:06Z",
             payload={"name": "update_plan", "arguments": "{}"},
@@ -260,6 +265,7 @@ def test_insert_helpers_persist_rows(tmp_path: Path) -> None:
     call_id = insert_function_call(
         FunctionCallInsert(
             conn=conn,
+            file_id=file_id,
             prompt_id=prompt_id,
             timestamp="2025-10-31T10:00:07Z",
             payload={"name": "shell_command", "call_id": "123", "arguments": "{}"},
@@ -314,7 +320,7 @@ def test_handle_event_msg_branches(tmp_path: Path) -> None:
     """Cover event_msg subtypes and counts."""
 
     conn = _make_connection(tmp_path)
-    _, prompt_id = _create_file_and_prompt(conn, "## My request for Codex:\nTest")
+    file_id, prompt_id = _create_file_and_prompt(conn, "## My request for Codex:\nTest")
     deps = _deps_with_real_inserts()
     counts: dict[str, int] = {
         "token_messages": 0,
@@ -324,6 +330,7 @@ def test_handle_event_msg_branches(tmp_path: Path) -> None:
 
     token_event = EventContext(
         conn=conn,
+        file_id=file_id,
         prompt_id=prompt_id,
         timestamp="t1",
         payload={"type": "token_count"},
@@ -337,6 +344,7 @@ def test_handle_event_msg_branches(tmp_path: Path) -> None:
             deps,
             EventContext(
                 conn=conn,
+                file_id=file_id,
                 prompt_id=prompt_id,
                 timestamp="t2",
                 payload={"type": subtype, "text": subtype},
@@ -354,13 +362,14 @@ def test_handle_turn_context_event(tmp_path: Path) -> None:
     """Validate turn_context handling and counter update."""
 
     conn = _make_connection(tmp_path)
-    _, prompt_id = _create_file_and_prompt(conn, "## My request for Codex:\nTest")
+    file_id, prompt_id = _create_file_and_prompt(conn, "## My request for Codex:\nTest")
     deps = _deps_with_real_inserts()
     counts: dict[str, int] = {"turn_context_messages": 0}
     handle_turn_context_event(
         deps,
         EventContext(
             conn=conn,
+            file_id=file_id,
             prompt_id=prompt_id,
             timestamp="t3",
             payload={"sandbox_policy": {"mode": "r"}},
@@ -376,7 +385,7 @@ def test_handle_response_item_event_calls_and_outputs(tmp_path: Path) -> None:
     """Cover function_call, function_call_output (with/without call_id), and reasoning skip."""
 
     conn = _make_connection(tmp_path)
-    _, prompt_id = _create_file_and_prompt(conn, "## My request for Codex:\nTest")
+    file_id, prompt_id = _create_file_and_prompt(conn, "## My request for Codex:\nTest")
     deps = _deps_with_real_inserts()
     tracker = FunctionCallTracker()
     counts: dict[str, int] = {"function_calls": 0, "function_plan_messages": 0}
@@ -386,6 +395,7 @@ def test_handle_response_item_event_calls_and_outputs(tmp_path: Path) -> None:
         deps,
         EventContext(
             conn=conn,
+            file_id=file_id,
             prompt_id=prompt_id,
             timestamp="t4",
             payload={"type": "reasoning"},
@@ -401,6 +411,7 @@ def test_handle_response_item_event_calls_and_outputs(tmp_path: Path) -> None:
         deps,
         EventContext(
             conn=conn,
+            file_id=file_id,
             prompt_id=prompt_id,
             timestamp="t5",
             payload={
@@ -421,6 +432,7 @@ def test_handle_response_item_event_calls_and_outputs(tmp_path: Path) -> None:
         deps,
         EventContext(
             conn=conn,
+            file_id=file_id,
             prompt_id=prompt_id,
             timestamp="t6",
             payload={
@@ -439,6 +451,7 @@ def test_handle_response_item_event_calls_and_outputs(tmp_path: Path) -> None:
         deps,
         EventContext(
             conn=conn,
+            file_id=file_id,
             prompt_id=prompt_id,
             timestamp="t7",
             payload={"type": "function_call_output", "output": "queued"},
@@ -453,6 +466,7 @@ def test_handle_response_item_event_calls_and_outputs(tmp_path: Path) -> None:
         deps,
         EventContext(
             conn=conn,
+            file_id=file_id,
             prompt_id=prompt_id,
             timestamp="t9",
             payload={"type": "function_call_output", "output": "updated"},
@@ -467,6 +481,7 @@ def test_handle_response_item_event_calls_and_outputs(tmp_path: Path) -> None:
         deps,
         EventContext(
             conn=conn,
+            file_id=file_id,
             prompt_id=prompt_id,
             timestamp="t8",
             payload={"type": "function_call", "name": "update_plan", "arguments": "{}"},
