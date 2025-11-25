@@ -24,8 +24,8 @@ This roadmap outlines the path to a viable **v1.0.0** release and sketches the e
 
 ### Issue bundle: v0.4.0 (Schema & ingestion hardening)
 
-- [ ] Add SQLite migration tooling and document the migration flow.
-- [ ] Expose DB path and output dirs in `user/config.toml`; validate paths on startup.
+- [X] Add SQLite migration tooling and document the migration flow.
+- [X] Expose DB path and output dirs in `user/config.toml`; validate paths on startup (ingest CLI now defaults to config db path; grouping CLI writes to configured reports dir).
 - [ ] Expand ingestion tests for `group_by_user_messages`, `_parse_prompt_message`, `_insert_function_call`.
 - [ ] CI: enforce Codecov config and ensure lint/type/test gates pass on PRs.
 

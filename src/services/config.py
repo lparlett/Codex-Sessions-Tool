@@ -3,11 +3,13 @@
 Purpose: Load and validate user configuration for locating Codex session data.
 Author: Codex with Lauren Parlett
 Date: 2025-10-30
+AI-assisted: Updated with Codex (GPT-5).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import os
 from pathlib import Path
 import sys
 
@@ -37,12 +39,20 @@ class DatabaseConfig:
 
 
 @dataclass(frozen=True)
+class OutputPaths:
+    """Output destinations for generated artifacts."""
+
+    reports_dir: Path = Path("reports")
+
+
+@dataclass(frozen=True)
 class SessionsConfig:
     """User-defined settings for locating Codex session logs."""
 
     sessions_root: Path
     ingest_batch_size: int = 1000
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
+    outputs: OutputPaths = field(default_factory=OutputPaths)
 
 
 def load_config(config_path: Path | None = None) -> SessionsConfig:
@@ -78,11 +88,13 @@ def load_config(config_path: Path | None = None) -> SessionsConfig:
     ingest_config = data.get("ingest", {})
     batch_size = _load_batch_size(ingest_config)
     database_cfg = _load_database_config(ingest_config, data.get("database", {}))
+    outputs_cfg = _load_outputs_config(data.get("outputs", {}))
 
     return SessionsConfig(
         sessions_root=root,
         ingest_batch_size=batch_size,
         database=database_cfg,
+        outputs=outputs_cfg,
     )
 
 
@@ -113,7 +125,7 @@ def _load_database_config(
     if isinstance(ingest_config, dict):
         db_path = ingest_config.get("db_path")
         if isinstance(db_path, str) and db_path.strip():
-            sqlite_path = Path(db_path).expanduser()
+            sqlite_path = Path(db_path)
 
     if isinstance(database_table, dict):
         backend_value = database_table.get("backend")
@@ -124,7 +136,7 @@ def _load_database_config(
             postgres_dsn = dsn_value.strip()
         sqlite_override = database_table.get("sqlite_path")
         if isinstance(sqlite_override, str) and sqlite_override.strip():
-            sqlite_path = Path(sqlite_override).expanduser()
+            sqlite_path = Path(sqlite_override)
 
     if backend not in {"sqlite", "postgres"}:
         raise ConfigError("database.backend must be either 'sqlite' or 'postgres'.")
@@ -132,8 +144,55 @@ def _load_database_config(
     if backend == "postgres" and not postgres_dsn:
         raise ConfigError("database.postgres_dsn is required when backend=postgres.")
 
+    sqlite_path = _validate_sqlite_path(sqlite_path)
+
     return DatabaseConfig(
         backend=backend,
         sqlite_path=sqlite_path,
         postgres_dsn=postgres_dsn,
     )
+
+
+def _load_outputs_config(outputs_table: dict | None) -> OutputPaths:
+    """Load and validate output directory configuration."""
+
+    reports_dir = Path("reports")
+    if isinstance(outputs_table, dict):
+        reports_value = outputs_table.get("reports_dir")
+        if isinstance(reports_value, str) and reports_value.strip():
+            reports_dir = Path(reports_value)
+
+    resolved_reports_dir = _validate_existing_directory(
+        reports_dir, "outputs.reports_dir"
+    )
+    return OutputPaths(reports_dir=resolved_reports_dir)
+
+
+def _validate_existing_directory(path: Path, label: str) -> Path:
+    """Ensure a path exists and is a directory with write permission."""
+
+    resolved = path.expanduser().resolve()
+    if not resolved.exists():
+        raise ConfigError(f"{label} does not exist: {resolved}")
+    if not resolved.is_dir():
+        raise ConfigError(f"{label} is not a directory: {resolved}")
+    if not os.access(resolved, os.W_OK):
+        raise ConfigError(f"{label} is not writable: {resolved}")
+    return resolved
+
+
+def _validate_sqlite_path(sqlite_path: Path) -> Path:
+    """Validate SQLite database path and parent directory accessibility."""
+
+    resolved = sqlite_path.expanduser().resolve()
+    if resolved.exists() and resolved.is_dir():
+        raise ConfigError(f"Configured database path is a directory: {resolved}")
+
+    parent = resolved.parent
+    if not parent.exists():
+        raise ConfigError(f"Database parent directory does not exist: {parent}")
+    if not parent.is_dir():
+        raise ConfigError(f"Database parent is not a directory: {parent}")
+    if not os.access(parent, os.W_OK):
+        raise ConfigError(f"Database parent directory is not writable: {parent}")
+    return resolved

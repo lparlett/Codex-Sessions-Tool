@@ -1,4 +1,4 @@
-"""Tests for parser interface definitions (AI-assisted by Codex GPT-5)."""
+﻿"""Tests for parser interface definitions (AI-assisted by Codex GPT-5)."""
 
 # pylint: disable=import-error,too-few-public-methods
 
@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Generator, Iterator
 
 import pytest
+import unittest
 
 from src.core.interfaces.parser import AgentLogMetadata, ILogParser
 from src.core.models.base_event import BaseEvent
@@ -20,7 +21,10 @@ class DummyEvent(BaseEvent):
     """Minimal concrete event for testing."""
 
     def to_dict(self) -> dict[str, Any]:
-        return self.raw_data
+        raw = getattr(self._data, "raw_data", None)
+        if isinstance(raw, dict):
+            return raw
+        return {}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> BaseEvent:
@@ -73,6 +77,9 @@ class DummyParser(ILogParser):
         return self.agent_type
 
 
+TC = unittest.TestCase()
+
+
 def test_agent_log_metadata_frozen() -> None:
     """AgentLogMetadata should be immutable and carry optional fields."""
     meta = AgentLogMetadata(
@@ -102,9 +109,9 @@ def test_dummy_parser_metadata_and_agent_type(tmp_path: Path) -> None:
     file_path = tmp_path / "session-1.jsonl"
     file_path.write_text("{}", encoding="utf-8")
     meta = parser.get_metadata(file_path)
-    assert meta.agent_type == "dummy"
-    assert meta.session_id == "session-1"
-    assert parser.agent_type == parser.get_agent_type()
+    TC.assertEqual(meta.agent_type, "dummy")
+    TC.assertEqual(meta.session_id, "session-1")
+    TC.assertEqual(parser.agent_type, parser.get_agent_type())
 
 
 def test_dummy_parser_parse_and_validation(tmp_path: Path) -> None:
@@ -113,10 +120,10 @@ def test_dummy_parser_parse_and_validation(tmp_path: Path) -> None:
     file_path = tmp_path / "session-2.jsonl"
     file_path.write_text("{}", encoding="utf-8")
     events = list(parser.parse_file(file_path))
-    assert len(events) == 1
-    assert isinstance(events[0], BaseEvent)
-    assert parser.validate_event({"valid": True})
-    assert not parser.validate_event({})
+    TC.assertEqual(len(events), 1)
+    TC.assertIsInstance(events[0], BaseEvent)
+    TC.assertTrue(parser.validate_event({"valid": True}))
+    TC.assertFalse(parser.validate_event({}))
 
 
 def test_dummy_parser_find_log_files_sorted(tmp_path: Path) -> None:
@@ -127,4 +134,5 @@ def test_dummy_parser_find_log_files_sorted(tmp_path: Path) -> None:
     file_b.write_text("b", encoding="utf-8")
     parser = DummyParser()
     found = list(parser.find_log_files(tmp_path))
-    assert found == [file_a, file_b]
+    TC.assertEqual(found, [file_a, file_b])
+

@@ -7,13 +7,13 @@ root = "C:/Users/<you>/.codex/sessions"  # Path to Codex/Copilot logs (adjust as
 
 # Ingest settings
 [ingest]
-batch_size = 1000            # Events to process per batch
-db_path = "reports/session_data.sqlite"  # Default SQLite database path
-max_workers = 4              # Max concurrent parsers
+batch_size = 1000  # Events to process per batch
+db_path = "reports/session_data.sqlite"  # Default SQLite database path (parent must exist)
+max_workers = 4  # Max concurrent parsers
 
 # Database backend (SQLite by default). For Postgres, set backend and DSN.
 [database]
-backend = "sqlite"           # "sqlite" or "postgres"
+backend = "sqlite"  # "sqlite" or "postgres"
 # sqlite_path = "reports/session_data.sqlite"  # Optional override for SQLite path
 # postgres_dsn = "postgresql://user:pass@host:5432/ai_log_trail"  # Required if backend=postgres
 # Note: Postgres support requires installing the optional extra: pip install .[postgres]
@@ -25,7 +25,7 @@ root = "/path/to/.codex/sessions"  # Path to Codex logs
 features = { streaming = true, function_calls = true, tool_usage = true }
 
 [agents.copilot]
-type = "copilot" 
+type = "copilot"
 root = "/path/to/.copilot/logs"  # Path to Copilot logs
 features = { streaming = false, function_calls = true, tool_usage = true }
 
@@ -42,3 +42,6 @@ preserve_raw = true  # Keep raw JSON
 [export]
 redact_secrets = true  # Auto-redact potential secrets
 max_content_length = 1000000  # Max event content size
+
+[outputs]
+reports_dir = "reports"  # Directory for generated reports (must exist and be writable)

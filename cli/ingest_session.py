@@ -1,4 +1,4 @@
-"""CLI to ingest Codex session logs into SQLite.
+﻿"""CLI to ingest Codex session logs into SQLite.
 
 Purpose: Command-line entry for ingesting Codex session logs into SQLite storage.
 Author: Codex with Lauren Parlett
@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import argparse
 import logging
-from collections import Counter
 import os
+from collections import Counter
 from pathlib import Path
 from typing import Any, List, Sequence
 
@@ -36,8 +36,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--database",
         "-d",
         type=Path,
-        default=Path("reports") / "session_data.sqlite",
-        help=("Path to the SQLite database " "(default: reports/session_data.sqlite)."),
+        default=None,
+        help=(
+            "Path to the SQLite database. "
+            "Defaults to ingest.db_path from user/config.toml."
+        ),
     )
     parser.add_argument(
         "--session",
@@ -74,12 +77,12 @@ def main() -> None:
 
     config = _load_configuration()
 
-    validate_db_path(args.database)
+    database_path = _resolve_database_path(args.database, config)
 
     if args.session:
         _ingest_single_file(
             args.session,
-            args.database,
+            database_path,
             verbose,
             config.ingest_batch_size,
         )
@@ -87,12 +90,12 @@ def main() -> None:
 
     summaries = _ingest_many_files(
         config.sessions_root,
-        args.database,
+        database_path,
         limit,
         verbose,
         config.ingest_batch_size,
     )
-    _report_many_results(summaries, args.database)
+    _report_many_results(summaries, database_path)
 
 
 def _resolve_runtime_options(
@@ -120,6 +123,18 @@ def _load_configuration() -> SessionsConfig:
     except ConfigError as err:
         print(f"Configuration error: {err}")
         raise SystemExit(1) from err
+
+
+def _resolve_database_path(cli_database: Path | None, config: SessionsConfig) -> Path:
+    """Choose the database path from CLI override or configuration."""
+
+    chosen = (
+        config.database.sqlite_path
+        if cli_database is None
+        else cli_database.expanduser().resolve()
+    )
+    validate_db_path(chosen)
+    return chosen
 
 
 def validate_db_path(path: Path) -> None:
@@ -201,7 +216,8 @@ def _report_many_results(
     """Print a summary report for multiple ingested session files."""
     totals: Counter[str] = Counter()
     for summary in summaries:
-        print(f"Ingested: {summary["session_file"]}")
+        session_file = summary["session_file"]
+        print(f"Ingested: {session_file}")
         for key, value in summary.items():
             if key in ("file_id", "session_file"):
                 continue

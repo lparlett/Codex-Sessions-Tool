@@ -26,9 +26,9 @@ The goal is a workflow where AI-assisted coding can be audited, explained, and o
 ## Current capabilities
 
 - **Structured ingest** – Parse Codex session directories into tables (`files`, `sessions`, `prompts`, `token_messages`, `turn_context_messages`, `agent_reasoning_messages`, `function_plan_messages`, `function_calls`) with raw JSON preserved.
-- 🛠️ **CLI utilities**
-  - `python -m cli.group_session` groups events under each prompt for quick console or file review.
-  - `python -m cli.ingest_session` ingests one or many sessions into SQLite with `--limit`, `--debug`, and `--verbose` modes.
+- **CLI utilities**
+  - `python -m cli.group_session` groups events under each prompt for quick console or file review and writes to `[outputs].reports_dir` by default.
+  - `python -m cli.ingest_session` ingests one or many sessions into SQLite with `--limit`, `--debug`, and `--verbose` modes using the configured database path.
 - 🗺️ **Governance docs** – `AGENTS.md` sets behavioral guardrails; `ROADMAP.md` tracks milestones through v1.0.0 and beyond.
 - 🧩 **Config scaffolding** – `user/config.example.toml` seeds per-user setup; actual secrets stay local via `.gitignore`.
 - 📦 **Migration docs** – `docs/migration.md` explains SQLite → Postgres migration, dry-run, and rollback steps.
@@ -45,7 +45,10 @@ The goal is a workflow where AI-assisted coding can be audited, explained, and o
    git clone <repo-url>
    cd Codex-Sessions-Tool
    cp user/config.example.toml user/config.toml
-   # edit user/config.toml to point at your Codex sessions directory
+   # edit user/config.toml to set:
+   #   [sessions].root -> Codex/Copilot logs directory
+   #   [ingest].db_path -> SQLite destination
+   #   [outputs].reports_dir -> where grouped reports should be written
    ```
 
    Optional tuning: set `[ingest].batch_size` in `user/config.toml` if you want a
@@ -54,17 +57,17 @@ The goal is a workflow where AI-assisted coding can be audited, explained, and o
 2. **Ingest a sample**
 
    ```bash
-   python -m cli.ingest_session --debug -d reports/session_data.sqlite
+   python -m cli.ingest_session --debug
    ```
 
-   This ingests the first two sessions, logs verbose output, and writes to `reports/session_data.sqlite`.
+   This ingests the first two sessions, logs verbose output, and writes to `[ingest].db_path`.
 3. **Explore prompts**
 
    ```bash
-   python -m cli.group_session -o reports/first_session.txt
+   python -m cli.group_session
    ```
 
-   Generates a grouped text report for the earliest session.
+   Generates a grouped text report for the earliest session, stored under `[outputs].reports_dir` (override with `-o`).
 
 ---
 
