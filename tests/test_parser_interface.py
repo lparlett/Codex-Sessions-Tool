@@ -9,8 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Generator, Iterator
 
-import pytest
 import unittest
+import pytest
 
 from src.core.interfaces.parser import AgentLogMetadata, ILogParser
 from src.core.models.base_event import BaseEvent
@@ -135,4 +135,3 @@ def test_dummy_parser_find_log_files_sorted(tmp_path: Path) -> None:
     parser = DummyParser()
     found = list(parser.find_log_files(tmp_path))
     TC.assertEqual(found, [file_a, file_b])
-

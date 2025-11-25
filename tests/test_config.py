@@ -1,13 +1,17 @@
+﻿# pylint: disable=import-error
 """Tests for configuration loading and validation."""
 
 from __future__ import annotations
 
 import textwrap
+import unittest
 from pathlib import Path
 
 import pytest
 
 from src.services.config import ConfigError, SessionsConfig, load_config
+
+TC = unittest.TestCase()
 
 
 def _write_config(tmp_path: Path, body: str) -> Path:
@@ -93,11 +97,11 @@ def test_load_config_valid(tmp_path: Path) -> None:
     )
 
     config = load_config(config_path)
-    assert isinstance(config, SessionsConfig)
-    assert config.sessions_root == sessions_root.resolve()
-    assert config.ingest_batch_size == 500
-    assert config.database.sqlite_path == sqlite_path.resolve()
-    assert config.outputs.reports_dir == reports_dir.resolve()
+    TC.assertIsInstance(config, SessionsConfig)
+    TC.assertEqual(config.sessions_root, sessions_root.resolve())
+    TC.assertEqual(config.ingest_batch_size, 500)
+    TC.assertEqual(config.database.sqlite_path, sqlite_path.resolve())
+    TC.assertEqual(config.outputs.reports_dir, reports_dir.resolve())
 
 
 def test_load_config_invalid_batch_size(tmp_path: Path) -> None:
@@ -150,7 +154,7 @@ def test_load_config_default_batch_size(tmp_path: Path) -> None:
     )
 
     config = load_config(config_path)
-    assert config.ingest_batch_size == 1000
+    TC.assertEqual(config.ingest_batch_size, 1000)
 
 
 def test_load_config_nonexistent_root(tmp_path: Path) -> None:
