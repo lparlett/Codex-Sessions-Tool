@@ -1,11 +1,22 @@
 # AI Log Trail Configuration
 # Copy this file to config.toml and customize for your environment
 
-# Global settings
+# Sessions root (required)
+[sessions]
+root = "C:/Users/<you>/.codex/sessions"  # Path to Codex/Copilot logs (adjust as needed)
+
+# Ingest settings
 [ingest]
-batch_size = 1000  # Events to process per batch
-db_path = "data/sessions.sqlite"  # Path to SQLite database
-max_workers = 4  # Max concurrent parsers
+batch_size = 1000            # Events to process per batch
+db_path = "reports/session_data.sqlite"  # Default SQLite database path
+max_workers = 4              # Max concurrent parsers
+
+# Database backend (SQLite by default). For Postgres, set backend and DSN.
+[database]
+backend = "sqlite"           # "sqlite" or "postgres"
+# sqlite_path = "reports/session_data.sqlite"  # Optional override for SQLite path
+# postgres_dsn = "postgresql://user:pass@host:5432/ai_log_trail"  # Required if backend=postgres
+# Note: Postgres support requires installing the optional extra: pip install .[postgres]
 
 # Agent-specific configurations
 [agents.codex]

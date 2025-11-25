@@ -20,7 +20,7 @@ class DummyEvent(BaseEvent):
     """Minimal concrete event for testing."""
 
     def to_dict(self) -> dict[str, Any]:
-        return self._data.raw_data  # type: ignore[attr-defined]
+        return self.raw_data
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> BaseEvent:

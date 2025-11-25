@@ -1,9 +1,9 @@
-# Purpose: discover Codex session files and transform JSONL events into grouped structures.
-# Author: Codex with Lauren Parlett
-# Date: 2025-10-30
-# Related tests: TBD (planned)
+"""Utilities for discovering and grouping Codex session logs.
 
-"""Utilities for discovering and grouping Codex session logs."""
+Purpose: Discover Codex session files and transform JSONL events into grouped structures.
+Author: Codex with Lauren Parlett
+Date: 2025-10-30
+"""
 
 from __future__ import annotations
 

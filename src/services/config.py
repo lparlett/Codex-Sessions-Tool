@@ -1,13 +1,13 @@
-# Purpose: load and validate user configuration for locating Codex session data.
-# Author: Codex with Lauren Parlett
-# Date: 2025-10-30
-# Related tests: TBD (planned)
+"""Load user configuration for codex_sessions_tool.
 
-"""Load user configuration for codex_sessions_tool."""
+Purpose: Load and validate user configuration for locating Codex session data.
+Author: Codex with Lauren Parlett
+Date: 2025-10-30
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 import sys
 
@@ -28,11 +28,21 @@ class ConfigError(RuntimeError):
 
 
 @dataclass(frozen=True)
+class DatabaseConfig:
+    """Database connection preferences."""
+
+    backend: str = "sqlite"  # sqlite or postgres
+    sqlite_path: Path = Path("reports") / "session_data.sqlite"
+    postgres_dsn: str | None = None
+
+
+@dataclass(frozen=True)
 class SessionsConfig:
     """User-defined settings for locating Codex session logs."""
 
     sessions_root: Path
     ingest_batch_size: int = 1000
+    database: DatabaseConfig = field(default_factory=DatabaseConfig)
 
 
 def load_config(config_path: Path | None = None) -> SessionsConfig:
@@ -66,6 +76,19 @@ def load_config(config_path: Path | None = None) -> SessionsConfig:
         raise ConfigError(f"Configured sessions root is not a directory: {root}")
 
     ingest_config = data.get("ingest", {})
+    batch_size = _load_batch_size(ingest_config)
+    database_cfg = _load_database_config(ingest_config, data.get("database", {}))
+
+    return SessionsConfig(
+        sessions_root=root,
+        ingest_batch_size=batch_size,
+        database=database_cfg,
+    )
+
+
+def _load_batch_size(ingest_config: dict | None) -> int:
+    """Return validated ingest batch size."""
+
     batch_size = 1000
     if isinstance(ingest_config, dict):
         override = ingest_config.get("batch_size")
@@ -75,5 +98,42 @@ def load_config(config_path: Path | None = None) -> SessionsConfig:
                     "ingest.batch_size must be a positive integer when provided."
                 )
             batch_size = override
+    return batch_size
 
-    return SessionsConfig(sessions_root=root, ingest_batch_size=batch_size)
+
+def _load_database_config(
+    ingest_config: dict | None, database_table: dict | None
+) -> DatabaseConfig:
+    """Load database configuration with sensible defaults."""
+
+    backend = "sqlite"
+    sqlite_path = Path("reports") / "session_data.sqlite"
+    postgres_dsn: str | None = None
+
+    if isinstance(ingest_config, dict):
+        db_path = ingest_config.get("db_path")
+        if isinstance(db_path, str) and db_path.strip():
+            sqlite_path = Path(db_path).expanduser()
+
+    if isinstance(database_table, dict):
+        backend_value = database_table.get("backend")
+        if isinstance(backend_value, str) and backend_value.strip():
+            backend = backend_value.strip().lower()
+        dsn_value = database_table.get("postgres_dsn")
+        if isinstance(dsn_value, str) and dsn_value.strip():
+            postgres_dsn = dsn_value.strip()
+        sqlite_override = database_table.get("sqlite_path")
+        if isinstance(sqlite_override, str) and sqlite_override.strip():
+            sqlite_path = Path(sqlite_override).expanduser()
+
+    if backend not in {"sqlite", "postgres"}:
+        raise ConfigError("database.backend must be either 'sqlite' or 'postgres'.")
+
+    if backend == "postgres" and not postgres_dsn:
+        raise ConfigError("database.postgres_dsn is required when backend=postgres.")
+
+    return DatabaseConfig(
+        backend=backend,
+        sqlite_path=sqlite_path,
+        postgres_dsn=postgres_dsn,
+    )
