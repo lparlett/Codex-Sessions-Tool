@@ -1,4 +1,4 @@
-"""Tests for parser interface definitions (AI-assisted by Codex GPT-5)."""
+﻿"""Tests for parser interface definitions (AI-assisted by Codex GPT-5)."""
 
 # pylint: disable=import-error,too-few-public-methods
 
@@ -20,7 +20,10 @@ class DummyEvent(BaseEvent):
     """Minimal concrete event for testing."""
 
     def to_dict(self) -> dict[str, Any]:
-        return self._data.raw_data  # type: ignore[attr-defined]
+        raw = getattr(self._data, "raw_data", None)
+        if isinstance(raw, dict):
+            return raw
+        return {}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> BaseEvent:

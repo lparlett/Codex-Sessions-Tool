@@ -1,9 +1,9 @@
-# Purpose: centralize SQLite schema management and connection helpers.
-# Author: Codex with Lauren Parlett
-# Date: 2025-10-30
-# Related tests: TBD (planned)
+"""SQLite helpers for codex_sessions_tool.
 
-"""SQLite helpers for codex_sessions_tool."""
+Purpose: Centralize SQLite schema management and connection helpers.
+Author: Codex with Lauren Parlett
+Date: 2025-10-30
+"""
 
 from __future__ import annotations
 

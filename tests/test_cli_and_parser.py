@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import textwrap
 from pathlib import Path
 
 import unittest
@@ -19,6 +20,34 @@ from src.services.config import ConfigError, SessionsConfig, load_config
 from src.services.ingest import SessionSummary
 
 TC = unittest.TestCase()
+
+
+def _write_cli_config(tmp_path: Path) -> tuple[Path, Path]:
+    """Write a minimal config file and return its path and db path."""
+
+    sessions_root = tmp_path / "sessions"
+    sessions_root.mkdir()
+    reports_dir = tmp_path / "reports"
+    reports_dir.mkdir()
+    db_path = reports_dir / "session.sqlite"
+
+    config_file = tmp_path / "config.toml"
+    config_file.write_text(
+        textwrap.dedent(
+            f"""
+            [sessions]
+            root = "{sessions_root.as_posix()}"
+
+            [ingest]
+            db_path = "{db_path.as_posix()}"
+
+            [outputs]
+            reports_dir = "{reports_dir.as_posix()}"
+            """
+        ),
+        encoding="utf-8",
+    )
+    return config_file, db_path.resolve()
 
 
 def test_resolve_runtime_options_debug_caps_limit() -> None:
@@ -214,3 +243,35 @@ def test_load_config_invalid_root(tmp_path: Path) -> None:
 
     with pytest.raises(ConfigError):
         load_config(config_file)
+
+
+def test_resolve_database_path_defaults_to_config(tmp_path: Path) -> None:
+    """_resolve_database_path should fall back to config when CLI is None."""
+
+    config_file, db_path = _write_cli_config(tmp_path)
+    config = load_config(config_file)
+
+    resolved = (
+        ingest_session._resolve_database_path(  # pylint: disable=protected-access
+            None, config
+        )
+    )
+    TC.assertEqual(resolved, db_path)
+
+
+def test_resolve_database_path_prefers_cli_override(tmp_path: Path) -> None:
+    """_resolve_database_path should honor CLI override when provided."""
+
+    config_file, _ = _write_cli_config(tmp_path)
+    config = load_config(config_file)
+
+    override_dir = tmp_path / "override"
+    override_dir.mkdir()
+    override_path = override_dir / "override.sqlite"
+
+    resolved = (
+        ingest_session._resolve_database_path(  # pylint: disable=protected-access
+            override_path, config
+        )
+    )
+    TC.assertEqual(resolved, override_path.resolve())

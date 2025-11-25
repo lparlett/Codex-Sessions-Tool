@@ -1,9 +1,9 @@
-# Purpose: shared extract/insert helpers for Codex session ingest.
-# Author: Codex with Lauren Parlett
-# Date: 2025-10-30
-# Related tests: TBD (planned)
+"""Database utility helpers used during Codex session ingestion.
 
-"""Database utility helpers used during Codex session ingestion."""
+Purpose: Shared extract/insert helpers for Codex session ingest.
+Author: Codex with Lauren Parlett
+Date: 2025-10-30
+"""
 
 from __future__ import annotations
 

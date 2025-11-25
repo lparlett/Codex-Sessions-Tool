@@ -1,9 +1,9 @@
-# Purpose: aggregate session parser handler helpers.
-# Author: Codex with Lauren Parlett
-# Date: 2025-10-30
-# Related tests: TBD (planned)
+"""Handler utilities supporting Codex session parsing.
 
-"""Handler utilities supporting Codex session parsing."""
+Purpose: Aggregate session parser handler helpers.
+Author: Codex with Lauren Parlett
+Date: 2025-10-30
+"""
 
 from .db_utils import (
     AgentReasoningInsert,
