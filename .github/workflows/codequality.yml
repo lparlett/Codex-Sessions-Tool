@@ -130,11 +130,29 @@ jobs:
           conn.commit()
           conn.close()
           PY
+      - name: Write CI config.toml
+        run: |
+          cat > user/config.toml <<'EOF'
+          [sessions]
+          root = "."
+
+          [ingest]
+          batch_size = 1000
+          db_path = "reports/session_data.sqlite"
+
+          [database]
+          backend = "postgres"
+          sqlite_path = "sample.sqlite"
+          postgres_dsn = "postgresql://postgres:postgres@localhost:5432/ai_log_trail"
+
+          [outputs]
+          reports_dir = "reports"
+          EOF
       - name: Migrate sample to Postgres
         env:
           POSTGRES_DSN: postgresql://postgres:postgres@localhost:5432/ai_log_trail
         run: |
-          python -m cli.migrate_sqlite_to_postgres --sqlite sample.sqlite --postgres-dsn "$POSTGRES_DSN" --execute
+          python -m cli.migrate_sqlite_to_postgres --config user/config.toml --sqlite sample.sqlite --postgres-dsn "$POSTGRES_DSN" --execute
       - name: Verify migrated counts
         env:
           POSTGRES_DSN: postgresql://postgres:postgres@localhost:5432/ai_log_trail
