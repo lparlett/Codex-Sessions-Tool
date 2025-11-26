@@ -1,8 +1,5 @@
 ﻿# pylint: disable=import-error
-"""Tests for configuration loading and validation."""
-
-from __future__ import annotations
-
+import os
 import textwrap
 import unittest
 from pathlib import Path
@@ -155,6 +152,34 @@ def test_load_config_default_batch_size(tmp_path: Path) -> None:
 
     config = load_config(config_path)
     TC.assertEqual(config.ingest_batch_size, 1000)
+
+
+def test_load_config_creates_default_directories(tmp_path: Path) -> None:
+    """Default output/db paths should be created when missing."""
+
+    sessions_root = tmp_path / "sessions"
+    sessions_root.mkdir()
+
+    config_path = _write_config(
+        tmp_path,
+        f"""
+        [sessions]
+        root = "{_path_for_toml(sessions_root)}"
+        """,
+    )
+
+    original_cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        config = load_config(config_path)
+    finally:
+        os.chdir(original_cwd)
+
+    reports_dir = tmp_path / "reports"
+    TC.assertTrue(reports_dir.exists())
+    TC.assertEqual(config.outputs.reports_dir, reports_dir.resolve())
+    expected_db = reports_dir / "session_data.sqlite"
+    TC.assertEqual(config.database.sqlite_path, expected_db.resolve())
 
 
 def test_load_config_nonexistent_root(tmp_path: Path) -> None:

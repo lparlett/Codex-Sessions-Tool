@@ -121,11 +121,13 @@ def _load_database_config(
     backend = "sqlite"
     sqlite_path = Path("reports") / "session_data.sqlite"
     postgres_dsn: str | None = None
+    user_supplied_sqlite = False
 
     if isinstance(ingest_config, dict):
         db_path = ingest_config.get("db_path")
         if isinstance(db_path, str) and db_path.strip():
             sqlite_path = Path(db_path)
+            user_supplied_sqlite = True
 
     if isinstance(database_table, dict):
         backend_value = database_table.get("backend")
@@ -137,6 +139,7 @@ def _load_database_config(
         sqlite_override = database_table.get("sqlite_path")
         if isinstance(sqlite_override, str) and sqlite_override.strip():
             sqlite_path = Path(sqlite_override)
+            user_supplied_sqlite = True
 
     if backend not in {"sqlite", "postgres"}:
         raise ConfigError("database.backend must be either 'sqlite' or 'postgres'.")
@@ -144,7 +147,10 @@ def _load_database_config(
     if backend == "postgres" and not postgres_dsn:
         raise ConfigError("database.postgres_dsn is required when backend=postgres.")
 
-    sqlite_path = _validate_sqlite_path(sqlite_path)
+    sqlite_path = _validate_sqlite_path(
+        sqlite_path,
+        create_if_missing=not user_supplied_sqlite,
+    )
 
     return DatabaseConfig(
         backend=backend,
@@ -157,23 +163,32 @@ def _load_outputs_config(outputs_table: dict | None) -> OutputPaths:
     """Load and validate output directory configuration."""
 
     reports_dir = Path("reports")
+    user_supplied_reports = False
     if isinstance(outputs_table, dict):
         reports_value = outputs_table.get("reports_dir")
         if isinstance(reports_value, str) and reports_value.strip():
             reports_dir = Path(reports_value)
+            user_supplied_reports = True
 
     resolved_reports_dir = _validate_existing_directory(
-        reports_dir, "outputs.reports_dir"
+        reports_dir,
+        "outputs.reports_dir",
+        create_if_missing=not user_supplied_reports,
     )
     return OutputPaths(reports_dir=resolved_reports_dir)
 
 
-def _validate_existing_directory(path: Path, label: str) -> Path:
+def _validate_existing_directory(
+    path: Path, label: str, *, create_if_missing: bool
+) -> Path:
     """Ensure a path exists and is a directory with write permission."""
 
     resolved = path.expanduser().resolve()
     if not resolved.exists():
-        raise ConfigError(f"{label} does not exist: {resolved}")
+        if create_if_missing:
+            resolved.mkdir(parents=True, exist_ok=True)
+        else:
+            raise ConfigError(f"{label} does not exist: {resolved}")
     if not resolved.is_dir():
         raise ConfigError(f"{label} is not a directory: {resolved}")
     if not os.access(resolved, os.W_OK):
@@ -181,7 +196,11 @@ def _validate_existing_directory(path: Path, label: str) -> Path:
     return resolved
 
 
-def _validate_sqlite_path(sqlite_path: Path) -> Path:
+def _validate_sqlite_path(
+    sqlite_path: Path,
+    *,
+    create_if_missing: bool,
+) -> Path:
     """Validate SQLite database path and parent directory accessibility."""
 
     resolved = sqlite_path.expanduser().resolve()
@@ -190,7 +209,10 @@ def _validate_sqlite_path(sqlite_path: Path) -> Path:
 
     parent = resolved.parent
     if not parent.exists():
-        raise ConfigError(f"Database parent directory does not exist: {parent}")
+        if create_if_missing:
+            parent.mkdir(parents=True, exist_ok=True)
+        else:
+            raise ConfigError(f"Database parent directory does not exist: {parent}")
     if not parent.is_dir():
         raise ConfigError(f"Database parent is not a directory: {parent}")
     if not os.access(parent, os.W_OK):
