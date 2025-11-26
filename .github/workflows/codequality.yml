@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 name: CI
 # Updated workflow for code quality checks
 
@@ -65,14 +66,13 @@ jobs:
           fi
       - name: Upload coverage reports
         env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }} # nosec
-        # AI-assisted: Ensure Codecov uploads authenticate to avoid rate limiting.
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         uses: codecov/codecov-action@v5
         with:
-          files: ./coverage.xml  # Use files (plural) instead of file
+          files: ./coverage.xml
           fail_ci_if_error: true
           codecov_yml_path: ./codecov.yml
-          verbose: true  # Add debug output
+          verbose: true
 
   migration-sample:
     if: github.event_name == 'pull_request'
