@@ -7,13 +7,16 @@ permissions:
   id-token: write
   
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
       - release/**
       - feature/**
   pull_request:
-    branches: ["main"]
+    branches:
+      - main
+      - release/**
 
 jobs:
   quality:
@@ -46,10 +49,20 @@ jobs:
         run: mypy --config-file mypy.ini src cli
       - name: Security scan with bandit
         run: bandit -r src cli
+      - name: Ensure default output directories
+        run: |
+          mkdir -p reports
       - name: Run tests with pytest
         run: |
           pytest tests/ --cov=src --cov=cli --cov-report=xml:coverage.xml --cov-report=term
           ls -la  # Debug: List files to verify coverage.xml was created
+      - name: Verify coverage artifact exists
+        run: |
+          if [ ! -s coverage.xml ]; then
+            echo "coverage.xml missing or empty; ensure pytest --cov generated it"
+            ls -la
+            exit 1
+          fi
       - name: Upload coverage reports
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }} # nosec
