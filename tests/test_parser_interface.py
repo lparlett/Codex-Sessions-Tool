@@ -135,3 +135,25 @@ def test_dummy_parser_find_log_files_sorted(tmp_path: Path) -> None:
     parser = DummyParser()
     found = list(parser.find_log_files(tmp_path))
     TC.assertEqual(found, [file_a, file_b])
+
+
+def test_dummy_parser_find_log_files_empty(tmp_path: Path) -> None:
+    """find_log_files should return empty when no files exist."""
+    parser = DummyParser()
+    found = list(parser.find_log_files(tmp_path))
+    TC.assertEqual(found, [])
+
+
+def test_dummy_event_to_dict_handles_non_dict_raw() -> None:
+    """DummyEvent.to_dict should fall back to empty dict when raw_data is not a dict."""
+    data = BaseEventData(
+        agent_type="dummy",
+        timestamp=datetime(2025, 11, 23, tzinfo=timezone.utc),
+        event_type="parsed",
+        event_category=EventCategory.SYSTEM,
+        priority=EventPriority.MEDIUM,
+        session_id="session-x",
+        raw_data={"value": "not-a-dict"},
+    )
+    event = DummyEvent(data)
+    TC.assertEqual(event.to_dict(), {"value": "not-a-dict"})
