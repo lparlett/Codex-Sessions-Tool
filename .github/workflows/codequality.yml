@@ -7,6 +7,7 @@ permissions:
   id-token: write
   
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -48,6 +49,9 @@ jobs:
         run: mypy --config-file mypy.ini src cli
       - name: Security scan with bandit
         run: bandit -r src cli
+      - name: Ensure default output directories
+        run: |
+          mkdir -p reports
       - name: Run tests with pytest
         run: |
           pytest tests/ --cov=src --cov=cli --cov-report=xml:coverage.xml --cov-report=term
