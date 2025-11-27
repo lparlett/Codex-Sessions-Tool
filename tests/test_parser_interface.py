@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import FrozenInstanceError
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Generator, Iterator
+from typing import Any, Generator, Iterator, cast
 
 import unittest
 import pytest
@@ -157,3 +157,34 @@ def test_dummy_event_to_dict_handles_non_dict_raw() -> None:
     )
     event = DummyEvent(data)
     TC.assertEqual(event.to_dict(), {"value": "not-a-dict"})
+
+
+def test_dummy_event_to_dict_returns_empty_when_raw_missing() -> None:
+    """DummyEvent.to_dict should return empty dict when raw_data is not a dict."""
+
+    data = BaseEventData(
+        agent_type="dummy",
+        timestamp=datetime(2025, 11, 23, tzinfo=timezone.utc),
+        event_type="parsed",
+        event_category=EventCategory.SYSTEM,
+        priority=EventPriority.MEDIUM,
+        session_id="session-y",
+        raw_data=cast(Any, "not-dict"),
+    )
+    event = DummyEvent(data)
+    TC.assertEqual(event.to_dict(), {})
+
+
+def test_dummy_event_from_dict_builds_event() -> None:
+    """DummyEvent.from_dict should hydrate BaseEventData from a dict."""
+
+    payload = {
+        "agent_type": "dummy",
+        "timestamp": "2025-11-23T00:00:00+00:00",
+        "event_type": "custom",
+        "session_id": "sid-123",
+    }
+    event = DummyEvent.from_dict(payload)
+    TC.assertIsInstance(event, DummyEvent)
+    TC.assertEqual(event.to_dict()["session_id"], "sid-123")
+    TC.assertEqual(event.to_dict().get("event_type", "custom"), "custom")

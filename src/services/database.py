@@ -3,6 +3,9 @@
 Purpose: Centralize SQLite schema management and connection helpers.
 Author: Codex with Lauren Parlett
 Date: 2025-10-30
+Related tests: tests/test_db_utils_and_handlers.py, tests/test_ingest.py,
+  tests/test_redactions.py
+AI-assisted: Updated with Codex (GPT-5).
 """
 
 from __future__ import annotations
@@ -41,6 +44,22 @@ CREATE TABLE IF NOT EXISTS prompts (
     my_request TEXT,
     raw_json TEXT
 );
+
+CREATE TABLE IF NOT EXISTS redactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prompt_id INTEGER REFERENCES prompts(id) ON DELETE CASCADE,
+    scope TEXT NOT NULL DEFAULT 'prompt'
+        CHECK (scope IN ('prompt', 'field', 'global')),
+    field_path TEXT,
+    replacement_text TEXT NOT NULL,
+    reason TEXT,
+    actor TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_redactions_prompt_scope
+    ON redactions(prompt_id, scope);
 
 CREATE TABLE IF NOT EXISTS token_messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

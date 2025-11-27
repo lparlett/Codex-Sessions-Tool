@@ -26,13 +26,14 @@ The goal is a workflow where AI-assisted coding can be audited, explained, and o
 
 ## Current capabilities
 
-- **Structured ingest** – Parse Codex session directories into tables (`files`, `sessions`, `prompts`, `token_messages`, `turn_context_messages`, `agent_reasoning_messages`, `function_plan_messages`, `function_calls`) with raw JSON preserved.
+- **Structured ingest** - Parse Codex session directories into tables (`files`, `sessions`, `prompts`, `token_messages`, `turn_context_messages`, `agent_reasoning_messages`, `function_plan_messages`, `function_calls`) with raw JSON preserved.
+- **Redaction storage** - `redactions` table tracks prompt/field/global scopes with replacement text, actor, reason, and timestamps for provenance.
 - **CLI utilities**
   - `python -m cli.group_session` groups events under each prompt for quick console or file review and writes to `[outputs].reports_dir` by default.
   - `python -m cli.ingest_session` ingests one or many sessions into SQLite with `--limit`, `--debug`, and `--verbose` modes using the configured database path.
-- 🗺️ **Governance docs** – `AGENTS.md` sets behavioral guardrails; `ROADMAP.md` tracks milestones through v1.0.0 and beyond.
-- 🧩 **Config scaffolding** – `user/config.example.toml` seeds per-user setup; actual secrets stay local via `.gitignore`.
-- 📦 **Migration docs** – `docs/migration.md` explains SQLite → Postgres migration, dry-run, and rollback steps.
+- **Governance docs** - `AGENTS.md` sets behavioral guardrails; `ROADMAP.md` tracks milestones through v1.0.0 and beyond.
+- **Config scaffolding** - `user/config.example.toml` seeds per-user setup; actual secrets stay local via `.gitignore`.
+- **Migration docs** - `docs/migration.md` explains SQLite to Postgres migration, dry-run, and rollback steps.
 
 ---
 
