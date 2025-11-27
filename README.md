@@ -13,7 +13,7 @@
 
 ## Why this exists
 
-Codex (and other AI coding tools) produce rich session logs, but they’re hard to read and even harder to share responsibly. The Codex Sessions Tool ingests `*.jsonl` session data, normalizes it into SQLite, and generates human-friendly reports that highlight:
+Codex (and other AI coding tools) produce rich session logs, but they’re hard to read and even harder to share responsibly. The AI Log Trail tool ingests `*.json` or `*.jsonl` session data, normalizes it into SQLite, and generates human-friendly reports that highlight:
 
 - User prompts and the agent responses/actions.
 - Token usage and cost indicators.
