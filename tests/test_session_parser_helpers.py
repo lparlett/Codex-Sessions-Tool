@@ -6,7 +6,11 @@ from __future__ import annotations
 
 import unittest
 from typing import Any
+from pathlib import Path
 
+import pytest
+
+from src.parsers import session_parser
 from src.parsers.session_parser import group_by_user_messages
 
 TC = unittest.TestCase()
@@ -42,14 +46,34 @@ def test_group_by_user_messages_handles_missing_payloads() -> None:
     """Non-dict payloads should be treated as non-user events and go to prelude."""
 
     events: list[dict[str, Any]] = [
-        {"type": "event_msg", "payload": "not-a-dict"},
+        {"type": None, "payload": "not-a-dict"},
+        {"type": "event_msg", "payload": "still-not-a-dict"},
         {"type": "event_msg", "payload": {"type": "user_message", "message": "Go"}},
         {"type": "turn_context", "payload": {"cwd": "/workspace"}},
+        {"payload": {"type": "agent_message", "message": "missing type"}},
     ]
 
     prelude, groups = group_by_user_messages(events)
 
-    TC.assertEqual(prelude, [{"type": "event_msg", "payload": "not-a-dict"}])
+    TC.assertIn({"type": None, "payload": "not-a-dict"}, prelude)
+    TC.assertIn({"type": "event_msg", "payload": "still-not-a-dict"}, prelude)
     TC.assertEqual(len(groups), 1)
     TC.assertEqual(groups[0]["user"]["payload"]["message"], "Go")
     TC.assertEqual(groups[0]["events"][0]["type"], "turn_context")
+
+
+def test_group_by_user_messages_handles_empty_events_list() -> None:
+    """Empty event list should return empty prelude and groups."""
+
+    prelude, groups = group_by_user_messages([])
+    TC.assertEqual(prelude, [])
+    TC.assertEqual(groups, [])
+
+
+def test_load_session_events_handles_trailing_partial_json(tmp_path: Path) -> None:
+    """load_session_events should fail on malformed JSON lines."""
+
+    log_file = tmp_path / "bad.jsonl"
+    log_file.write_text('{"ok": true}\n{"incomplete": ', encoding="utf-8")
+    with pytest.raises(ValueError):
+        session_parser.load_session_events(log_file)

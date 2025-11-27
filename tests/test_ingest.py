@@ -278,6 +278,34 @@ def test_ingest_single_session_rolls_back_on_failure(
     conn.close()
 
 
+def test_ingest_session_file_rollback_on_db_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ingest_session_file should rollback and re-raise on DB errors."""
+
+    session_file = tmp_path / "sess.jsonl"
+    session_file.write_text('{"type": "event_msg", "payload": {}}', encoding="utf-8")
+    db_path = tmp_path / "db.sqlite"
+
+    class _BrokenConn(sqlite3.Connection):  # pylint: disable=too-few-public-methods
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+            self.executed = False
+
+        def execute(
+            self, *args: Any, **kwargs: Any
+        ) -> Any:  # pylint: disable=unused-argument
+            self.executed = True
+            raise sqlite3.DatabaseError("boom")
+
+    def _broken_get_connection(path: Path) -> sqlite3.Connection:
+        return _BrokenConn(path)
+
+    monkeypatch.setattr(ingest, "get_connection", _broken_get_connection)
+    with pytest.raises(sqlite3.DatabaseError):
+        ingest_session_file(session_file, db_path)
+
+
 def test_ingest_sessions_in_directory_handles_limits(
     tmp_path: Path, sample_session_file: Path
 ) -> None:
@@ -299,6 +327,17 @@ def test_ingest_sessions_in_directory_handles_limits(
     TC.assertEqual(len(summaries), 1)
 
 
+def test_ingest_sessions_in_directory_returns_iterator(tmp_path: Path) -> None:
+    """ingest_sessions_in_directory should return iterator even before iteration."""
+
+    root = tmp_path / "2025" / "11" / "23"
+    root.mkdir(parents=True)
+    (root / "a.jsonl").write_text("{}", encoding="utf-8")
+    db_path = tmp_path / "db.sqlite"
+    iterator = ingest.ingest_sessions_in_directory(root, db_path, limit=None)
+    TC.assertTrue(hasattr(iterator, "__iter__"))
+
+
 def test_ingest_sessions_in_directory_raises_on_empty(tmp_path: Path) -> None:
     """ingest_sessions_in_directory should raise when no files are found."""
     db_path = tmp_path / "test.sqlite"
@@ -311,6 +350,46 @@ def test_ingest_sessions_in_directory_raises_on_empty(tmp_path: Path) -> None:
                 db_path,
             )
         )
+
+
+def test_ingest_sessions_in_directory_propagates_non_discovery_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Unexpected errors inside ingest_sessions_in_directory should propagate."""
+
+    def _boom(_root: Path) -> list[Path]:
+        raise RuntimeError("explode")
+
+    monkeypatch.setattr(ingest, "iter_session_files", _boom)
+    with pytest.raises(RuntimeError):
+        list(
+            ingest.ingest_sessions_in_directory(
+                tmp_path,
+                tmp_path / "db.sqlite",
+            )
+        )
+
+
+def test_ingest_single_session_propagates_unexpected_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """_ingest_single_session should re-raise unexpected exceptions."""
+
+    conn = ingest.get_connection(tmp_path / "err.sqlite")
+    ingest.ensure_schema(conn)
+    session_file = tmp_path / "session.jsonl"
+    session_file.write_text("{}", encoding="utf-8")
+
+    def _boom(*_args: Any, **_kwargs: Any) -> None:
+        raise RuntimeError("explode")
+
+    monkeypatch.setattr(ingest, "load_session_events", _boom)
+    with pytest.raises(RuntimeError):
+        ingest._ingest_single_session(  # pylint: disable=protected-access
+            conn,
+            session_file,
+        )
+    conn.close()
 
 
 def test_log_processing_error_and_serialization(

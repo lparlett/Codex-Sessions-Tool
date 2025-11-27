@@ -86,6 +86,18 @@ def test_codex_config_validate(tmp_path: Path) -> None:
     with pytest.raises(ValueError):
         CodexConfig(root_path=missing_root).validate()
 
+    cfg_dict = cfg.to_dict()
+    TC.assertEqual(cfg_dict["type"], "codex")
+    TC.assertEqual(cfg_dict["root"], str(valid_root))
+    TC.assertTrue(cfg_dict["features"]["streaming"])
+
+    restored = CodexConfig.from_dict(cfg_dict)
+    TC.assertEqual(restored.agent_type, "codex")
+    TC.assertEqual(restored.root_path, valid_root)
+    TC.assertEqual(
+        restored.features.supports_streaming, cfg.features.supports_streaming
+    )
+
 
 def test_agent_config_data_validation() -> None:
     """AgentConfigData should reject empty agent_type."""

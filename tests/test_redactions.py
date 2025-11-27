@@ -1,0 +1,371 @@
+"""Tests for redaction CRUD helpers (AI-assisted by Codex GPT-5)."""
+
+# pylint: disable=import-error
+
+from __future__ import annotations
+
+import sqlite3
+import unittest
+import types
+from pathlib import Path
+
+import pytest
+
+from src.services.database import ensure_schema, get_connection
+from src.services.redactions import (
+    RedactionCreate,
+    create_redaction,
+    delete_redaction,
+    get_redaction,
+    list_redactions,
+    update_redaction,
+)
+
+TC = unittest.TestCase()
+
+
+def _make_connection(tmp_path: Path) -> sqlite3.Connection:
+    """Create SQLite connection with schema applied."""
+
+    conn = get_connection(tmp_path / "redactions.sqlite")
+    ensure_schema(conn)
+    return conn
+
+
+def _insert_prompt(conn: sqlite3.Connection, *, path_suffix: str = "") -> int:
+    """Insert minimal file + prompt rows for FK coverage."""
+
+    file_path = f"tests/redactions{path_suffix}.jsonl"
+    file_id = conn.execute(
+        "INSERT INTO files (path) VALUES (?)", (file_path,)
+    ).lastrowid
+    if file_id is None:
+        raise RuntimeError("Failed to insert file row for test setup.")
+    prompt_id = conn.execute(
+        """
+        INSERT INTO prompts (file_id, prompt_index, timestamp, message, raw_json)
+        VALUES (?, 1, 't0', 'prompt', '{}')
+        """,
+        (int(file_id),),
+    ).lastrowid
+    if prompt_id is None:
+        raise RuntimeError("Failed to insert prompt row for test setup.")
+    return int(prompt_id)
+
+
+def test_create_and_get_redaction(tmp_path: Path) -> None:
+    """create_redaction should persist and fetch a prompt-level entry."""
+
+    conn = _make_connection(tmp_path)
+    prompt_id = _insert_prompt(conn)
+    redaction_id = create_redaction(
+        conn,
+        RedactionCreate(
+            prompt_id=prompt_id,
+            scope="prompt",
+            replacement_text="[hidden]",
+            reason="sensitive",
+            actor="tester",
+        ),
+    )
+    record = get_redaction(conn, redaction_id)
+    TC.assertIsNotNone(record)
+    if record is None:
+        TC.fail("Expected record to be returned.")
+    TC.assertEqual(record.prompt_id, prompt_id)
+    TC.assertEqual(record.scope, "prompt")
+    TC.assertEqual(record.replacement_text, "[hidden]")
+    TC.assertEqual(record.reason, "sensitive")
+    TC.assertEqual(record.actor, "tester")
+    conn.close()
+
+
+def test_list_and_update_redaction(tmp_path: Path) -> None:
+    """list_redactions and update_redaction should filter and mutate rows."""
+
+    conn = _make_connection(tmp_path)
+    prompt_id = _insert_prompt(conn)
+    redaction_id = create_redaction(
+        conn,
+        RedactionCreate(
+            prompt_id=prompt_id,
+            scope="field",
+            field_path="message",
+            replacement_text="[removed]",
+        ),
+    )
+    records = list_redactions(conn, prompt_id=prompt_id)
+    TC.assertEqual(len(records), 1)
+    updated = update_redaction(
+        conn,
+        redaction_id,
+        replacement_text="[masked]",
+        reason="privacy",
+        scope="field",
+        field_path="raw_json.events[0].payload",
+    )
+    TC.assertTrue(updated)
+    refreshed = get_redaction(conn, redaction_id)
+    TC.assertIsNotNone(refreshed)
+    if refreshed is None:
+        TC.fail("Expected refreshed record to be returned.")
+    TC.assertEqual(refreshed.replacement_text, "[masked]")
+    TC.assertEqual(refreshed.reason, "privacy")
+    TC.assertEqual(
+        refreshed.field_path,
+        "raw_json.events[0].payload",
+    )
+    TC.assertIsNotNone(refreshed.updated_at)
+    conn.close()
+
+
+def test_delete_redaction_and_validation(tmp_path: Path) -> None:
+    """delete_redaction should remove rows and validation should guard scope."""
+
+    conn = _make_connection(tmp_path)
+    prompt_id = _insert_prompt(conn)
+    redaction_id = create_redaction(
+        conn,
+        RedactionCreate(
+            prompt_id=prompt_id,
+            scope="prompt",
+            replacement_text="[gone]",
+        ),
+    )
+    deleted = delete_redaction(conn, redaction_id)
+    TC.assertTrue(deleted)
+    TC.assertIsNone(get_redaction(conn, redaction_id))
+
+    with pytest.raises(ValueError):
+        create_redaction(
+            conn,
+            RedactionCreate(
+                prompt_id=None,
+                scope="invalid",
+                replacement_text="x",
+            ),
+        )
+    with pytest.raises(ValueError):
+        create_redaction(
+            conn,
+            RedactionCreate(
+                prompt_id=None,
+                scope="field",
+                field_path="",
+                replacement_text="x",
+            ),
+        )
+    with pytest.raises(ValueError):
+        create_redaction(
+            conn,
+            RedactionCreate(
+                prompt_id=None,
+                scope="prompt",
+                replacement_text="   ",
+            ),
+        )
+    conn.close()
+
+
+def test_list_and_scope_filtering(tmp_path: Path) -> None:
+    """list_redactions should filter by scope and prompt_id."""
+
+    conn = _make_connection(tmp_path)
+    first_prompt = _insert_prompt(conn, path_suffix="-1")
+    second_prompt = _insert_prompt(conn, path_suffix="-2")
+    create_redaction(
+        conn,
+        RedactionCreate(
+            prompt_id=first_prompt,
+            scope="prompt",
+            replacement_text="[p1]",
+        ),
+    )
+    create_redaction(
+        conn,
+        RedactionCreate(
+            prompt_id=second_prompt,
+            scope="field",
+            field_path="message",
+            replacement_text="[p2]",
+        ),
+    )
+    all_records = list_redactions(conn)
+    TC.assertEqual(len(all_records), 2)
+
+    first_only = list_redactions(conn, prompt_id=first_prompt)
+    TC.assertEqual(len(first_only), 1)
+    TC.assertEqual(first_only[0].prompt_id, first_prompt)
+
+    field_only = list_redactions(conn, scope="field")
+    TC.assertEqual(len(field_only), 1)
+    TC.assertEqual(field_only[0].scope, "field")
+    conn.close()
+
+
+def test_update_redaction_no_changes(tmp_path: Path) -> None:
+    """update_redaction should return False when no fields were provided."""
+
+    conn = _make_connection(tmp_path)
+    prompt_id = _insert_prompt(conn)
+    redaction_id = create_redaction(
+        conn,
+        RedactionCreate(
+            prompt_id=prompt_id,
+            scope="prompt",
+            replacement_text="[text]",
+        ),
+    )
+    TC.assertFalse(update_redaction(conn, redaction_id))
+    conn.close()
+
+
+def test_update_redaction_requires_field_path_for_scope(tmp_path: Path) -> None:
+    """update_redaction should enforce field_path when scope changes to field."""
+
+    conn = _make_connection(tmp_path)
+    prompt_id = _insert_prompt(conn)
+    redaction_id = create_redaction(
+        conn,
+        RedactionCreate(
+            prompt_id=prompt_id,
+            scope="prompt",
+            replacement_text="[text]",
+        ),
+    )
+    with pytest.raises(ValueError):
+        update_redaction(conn, redaction_id, scope="field", field_path="")
+    conn.close()
+
+
+def test_update_redaction_rejects_blank_replacement(tmp_path: Path) -> None:
+    """update_redaction should reject empty replacement_text."""
+
+    conn = _make_connection(tmp_path)
+    prompt_id = _insert_prompt(conn)
+    redaction_id = create_redaction(
+        conn,
+        RedactionCreate(
+            prompt_id=prompt_id,
+            scope="prompt",
+            replacement_text="[text]",
+        ),
+    )
+    with pytest.raises(ValueError):
+        update_redaction(conn, redaction_id, replacement_text="  ")
+    conn.close()
+
+
+def test_get_redaction_missing(tmp_path: Path) -> None:
+    """get_redaction should return None for unknown ids."""
+
+    conn = _make_connection(tmp_path)
+    TC.assertIsNone(get_redaction(conn, 999))
+    conn.close()
+
+
+def test_update_redaction_sets_prompt_and_actor(tmp_path: Path) -> None:
+    """update_redaction should allow prompt and actor updates."""
+
+    conn = _make_connection(tmp_path)
+    prompt_id = _insert_prompt(conn)
+    new_prompt = _insert_prompt(conn, path_suffix="-actor")
+    redaction_id = create_redaction(
+        conn,
+        RedactionCreate(
+            prompt_id=prompt_id,
+            scope="prompt",
+            replacement_text="[text]",
+        ),
+    )
+    updated = update_redaction(
+        conn,
+        redaction_id,
+        prompt_id=new_prompt,
+        actor="reviewer",
+    )
+    TC.assertTrue(updated)
+    refreshed = get_redaction(conn, redaction_id)
+    TC.assertIsNotNone(refreshed)
+    if refreshed is None:
+        TC.fail("Expected refreshed record to be returned.")
+    TC.assertEqual(refreshed.prompt_id, new_prompt)
+    TC.assertEqual(refreshed.actor, "reviewer")
+    conn.close()
+
+
+def test_create_redaction_raises_when_lastrowid_missing() -> None:
+    """create_redaction should raise when cursor.lastrowid is None."""
+
+    class _NoRowConn:
+        def __init__(self) -> None:
+            self.executed: list[tuple] = []
+
+        def execute(self, stmt: str, params: tuple) -> types.SimpleNamespace:
+            self.executed.append((stmt, params))
+            return types.SimpleNamespace(lastrowid=None)
+
+        def close(self) -> None:
+            return None
+
+    conn = _NoRowConn()
+    with pytest.raises(RuntimeError):
+        create_redaction(
+            conn,  # type: ignore[arg-type]
+            RedactionCreate(
+                prompt_id=None,
+                scope="prompt",
+                replacement_text="[text]",
+            ),
+        )
+
+
+def test_insert_prompt_raises_when_file_id_missing() -> None:
+    """_insert_prompt should raise when file insert does not return an id."""
+
+    class _Conn:
+        def execute(self, _stmt: str, _params: tuple) -> types.SimpleNamespace:
+            return types.SimpleNamespace(lastrowid=None)
+
+        def close(self) -> None:
+            return None
+
+    with pytest.raises(RuntimeError):
+        _insert_prompt(_Conn())  # type: ignore[arg-type]
+
+
+def test_insert_prompt_raises_when_prompt_id_missing() -> None:
+    """_insert_prompt should raise when prompt insert does not return an id."""
+
+    class _Conn:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def execute(self, _stmt: str, _params: tuple) -> types.SimpleNamespace:
+            self.calls += 1
+            if self.calls == 1:
+                return types.SimpleNamespace(lastrowid=1)
+            return types.SimpleNamespace(lastrowid=None)
+
+        def close(self) -> None:
+            return None
+
+    with pytest.raises(RuntimeError):
+        _insert_prompt(_Conn())  # type: ignore[arg-type]
+
+
+def test_create_redaction_requires_field_path_for_field_scope() -> None:
+    """create_redaction should require field_path when scope is field."""
+
+    conn = _make_connection(Path("field_scope_tmp"))
+    with pytest.raises(ValueError):
+        create_redaction(
+            conn,
+            RedactionCreate(
+                prompt_id=None,
+                scope="field",
+                field_path=None,
+                replacement_text="[text]",
+            ),
+        )
+    conn.close()
