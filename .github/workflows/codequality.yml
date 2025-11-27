@@ -158,9 +158,10 @@ jobs:
           POSTGRES_DSN: postgresql://postgres:postgres@localhost:5432/ai_log_trail
         run: |
           python - <<'PY'
+          import os
           import psycopg2
 
-          dsn = "$POSTGRES_DSN"
+          dsn = os.environ["POSTGRES_DSN"]
           with psycopg2.connect(dsn=dsn) as conn, conn.cursor() as cur:
               for table, expected_min in (("files", 1), ("sessions", 1), ("prompts", 1), ("events", 1)):
                   cur.execute(f"SELECT COUNT(*) FROM {table}")
