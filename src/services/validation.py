@@ -1,10 +1,10 @@
-# Purpose: validate Codex session events before ingest processing.
-# Author: Codex with Lauren Parlett
-# Date: 2025-10-30
-# Related tests: TBD (planned)
-# AI-assisted: Generated with Codex (GPT-5).
+"""Validators that ensure event payloads meet ingest expectations.
 
-"""Validators that ensure event payloads meet ingest expectations."""
+Purpose: Validate Codex session events before ingest processing.
+Author: Codex with Lauren Parlett
+Date: 2025-10-30
+AI-assisted: Generated with Codex (GPT-5).
+"""
 
 from __future__ import annotations
 

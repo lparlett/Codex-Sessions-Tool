@@ -252,6 +252,8 @@ ProcessingError(
 * Summarize outputs instead of printing large data blocks.
 * When uncertain, ask clarifying questions rather than guessing.
 * Maintain a factual, explanatory tone.
+* Do not pause to announce time/effort concerns; complete the requested change unless a true blocker arises.
+* Prefer fixing lint/type/test failures over adding suppressions; only suppress checks with explicit user approval.
 
 ---
 

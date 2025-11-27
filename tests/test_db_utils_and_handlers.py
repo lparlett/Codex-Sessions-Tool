@@ -1,4 +1,4 @@
-"""Tests for db_utils and event_handlers helpers (AI-assisted by Codex GPT-5)."""
+﻿"""Tests for db_utils and event_handlers helpers (AI-assisted by Codex GPT-5)."""
 
 # pylint: disable=import-error
 
@@ -176,6 +176,26 @@ def test_parse_prompt_message_handles_state_resets() -> None:
     TC.assertIn("Line1", my_request_value)
 
 
+def test_parse_prompt_message_with_irregular_bullets() -> None:
+    """Parse prompt message with mixed bullet and inline tab entries."""
+
+    message = (
+        "## Active file: README.md\n"
+        "## Open tabs:\n"
+        "- tab1.md\n"
+        "tab2.md\n"
+        "## My request for Codex:\n"
+        "Line 1\n"
+        "Line 2\n"
+    )
+    active_file, open_tabs, my_request = parse_prompt_message(message)
+    TC.assertEqual(active_file, "README.md")
+    TC.assertIn("tab1.md", open_tabs or "")
+    TC.assertIn("tab2.md", open_tabs or "")
+    TC.assertIn("Line 1", my_request or "")
+    TC.assertIn("Line 2", my_request or "")
+
+
 def test_insert_helpers_persist_rows(tmp_path: Path) -> None:
     """Exercise db_utils insert helpers end-to-end."""
 
@@ -307,6 +327,41 @@ def _deps_with_real_inserts() -> EventHandlerDeps:
     """Create EventHandlerDeps wired to real db_utils inserts."""
 
     return build_event_handler_deps()
+
+
+def test_insert_function_call_stores_call_fields(tmp_path: Path) -> None:
+    """insert_function_call should persist function call data and raw JSON."""
+
+    conn = _make_connection(tmp_path)
+    file_id, prompt_id = _create_file_and_prompt(conn, "## My request for Codex:\nCall")
+
+    payload = {"name": "shell_command", "call_id": "abc123", "arguments": "{foo:1}"}
+    raw = {"raw": "data", "payload": payload}
+    row_id = insert_function_call(
+        FunctionCallInsert(
+            conn=conn,
+            file_id=file_id,
+            prompt_id=prompt_id,
+            timestamp="t1",
+            payload=payload,
+            raw=raw,
+        )
+    )
+
+    row = conn.execute(
+        """
+        SELECT name, call_id, arguments, output, raw_call_json
+        FROM function_calls
+        WHERE id = ?
+        """,
+        (row_id,),
+    ).fetchone()
+    TC.assertEqual(row[0], "shell_command")
+    TC.assertEqual(row[1], "abc123")
+    TC.assertEqual(row[2], "{foo:1}")
+    TC.assertIsNone(row[3])
+    TC.assertIn("raw", row[4])
+    conn.close()
 
 
 def test_handle_event_msg_branches(tmp_path: Path) -> None:

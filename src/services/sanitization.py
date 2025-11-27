@@ -1,10 +1,10 @@
-# Purpose: sanitize Codex session JSON payloads before persistence.
-# Author: Codex with Lauren Parlett
-# Date: 2025-10-30
-# Related tests: TBD (planned)
-# AI-assisted: Generated with Codex (GPT-5).
+"""Utilities that redact sensitive values from JSON-compatible structures.
 
-"""Utilities that redact sensitive values from JSON-compatible structures."""
+Purpose: Sanitize Codex session JSON payloads before persistence.
+Author: Codex with Lauren Parlett
+Date: 2025-10-30
+AI-assisted: Generated with Codex (GPT-5).
+"""
 
 from __future__ import annotations
 

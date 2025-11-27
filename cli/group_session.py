@@ -1,9 +1,9 @@
-# Purpose: provide human-readable grouping of Codex session logs for quick review.
-# Author: Codex with Lauren Parlett
-# Date: 2025-10-30
-# Related tests: TBD (planned)
+﻿"""Simple CLI to group Codex session events by user prompts.
 
-"""Simple CLI to group Codex session events by user prompts."""
+Purpose: Provide human-readable grouping of Codex session logs for quick review.
+Author: Codex with Lauren Parlett
+Date: 2025-10-30
+"""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from src.parsers.session_parser import (
     group_by_user_messages,
     load_session_events,
 )
-from src.services.config import ConfigError, load_config
+from src.services.config import ConfigError, SessionsConfig, load_config
 
 
 def shorten(text: str, limit: int = 120) -> str:
@@ -192,22 +192,27 @@ def main() -> None:
     _reconfigure_stdout()
     args = build_parser().parse_args()
 
+    config: SessionsConfig | None = None
+    output_path: Path | None = args.output
     try:
-        session_file = _discover_session_file()
+        config = _load_configuration()
+        if output_path is None:
+            output_path = config.outputs.reports_dir / "session.txt"
+        session_file = find_first_session_file(config.sessions_root)
     except (ConfigError, SessionDiscoveryError) as err:
         if isinstance(err, ConfigError):
             message = f"Configuration error: {err}"
         else:
             message = f"Session discovery error: {err}"
         print(message)
-        if args.output:
-            write_report(args.output, [message])
+        if output_path:
+            write_report(output_path, [message])
         return
 
     captured_output = _render_session(session_file)
 
-    if args.output:
-        write_report(args.output, captured_output)
+    if output_path:
+        write_report(output_path, captured_output)
 
 
 def _reconfigure_stdout() -> None:
@@ -222,11 +227,13 @@ def _reconfigure_stdout() -> None:
         pass
 
 
-def _discover_session_file() -> Path:
-    """Load config and locate the first available session file."""
+def _load_configuration() -> SessionsConfig:
+    """Load sessions configuration with user-friendly error handling."""
 
-    config = load_config()
-    return find_first_session_file(config.sessions_root)
+    try:
+        return load_config()
+    except ConfigError as err:
+        raise ConfigError(err) from err
 
 
 def _render_session(session_file: Path) -> list[str]:

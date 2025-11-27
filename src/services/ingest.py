@@ -1,10 +1,10 @@
-# Purpose: normalize Codex session events into SQLite rows for transparency.
-# Author: Codex with Lauren Parlett
-# Date: 2025-10-30
-# Related tests: TBD (planned)
-# AI-assisted: Updated with Codex (GPT-5).
+"""Ingest Codex session logs into SQLite.
 
-"""Ingest Codex session logs into SQLite."""
+Purpose: Normalize Codex session events into SQLite rows for transparency.
+Author: Codex with Lauren Parlett
+Date: 2025-10-30
+AI-assisted: Updated with Codex (GPT-5).
+"""
 
 from __future__ import annotations
 
