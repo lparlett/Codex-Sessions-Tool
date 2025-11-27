@@ -26,8 +26,8 @@ This roadmap outlines the path to a viable **v1.0.0** release and sketches the e
 
 - [X] Add SQLite migration tooling and document the migration flow.
 - [X] Expose DB path and output dirs in `user/config.toml`; validate paths on startup (ingest CLI now defaults to config db path; grouping CLI writes to configured reports dir).
-- [ ] Expand ingestion tests for `group_by_user_messages`, `_parse_prompt_message`, `_insert_function_call`.
-- [ ] CI: enforce Codecov config and ensure lint/type/test gates pass on PRs.
+- [X] Expand ingestion tests for `group_by_user_messages`, `_parse_prompt_message`, `_insert_function_call`.
+- [X] CI: enforce Codecov config and ensure lint/type/test gates pass on PRs.
 
 **Why migrate beyond SQLite?**
 
@@ -42,7 +42,7 @@ SQLite stays the default for single-user, local ingest, but we need a path to a 
 
 ### Issue bundle: v0.8.0 (Reporting CLI + filters)
 
-- [ ] Add `codex-tool report` modes: prompts-only; prompts + reasoning/actions; token summaries.
+- [ ] Add `ai-log-trail report` modes: prompts-only; prompts + reasoning/actions; token summaries.
 - [ ] Support Markdown and CSV outputs.
 - [ ] Filters: date range, repo/workspace, session id.
 - [ ] Include transparency metadata (e.g., entries redacted by X).
