@@ -294,7 +294,7 @@ def _sync_identity(pg_conn: Any, table: str) -> None:
         """
         SELECT setval(
             pg_get_serial_sequence(%s, 'id'),
-            COALESCE((SELECT MAX(id) FROM {}), 0)
+            GREATEST(COALESCE((SELECT MAX(id) FROM {}), 0), 1)
         )
         """
     ).format(sql.Identifier(table))
