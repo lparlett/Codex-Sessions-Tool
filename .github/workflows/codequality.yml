@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 name: CI
 # Updated workflow for code quality checks
 
@@ -65,14 +66,13 @@ jobs:
           fi
       - name: Upload coverage reports
         env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }} # nosec
-        # AI-assisted: Ensure Codecov uploads authenticate to avoid rate limiting.
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         uses: codecov/codecov-action@v5
         with:
-          files: ./coverage.xml  # Use files (plural) instead of file
+          files: ./coverage.xml
           fail_ci_if_error: true
           codecov_yml_path: ./codecov.yml
-          verbose: true  # Add debug output
+          verbose: true
 
   migration-sample:
     if: github.event_name == 'pull_request'
@@ -130,19 +130,38 @@ jobs:
           conn.commit()
           conn.close()
           PY
+      - name: Write CI config.toml
+        run: |
+          cat > user/config.toml <<'EOF'
+          [sessions]
+          root = "."
+
+          [ingest]
+          batch_size = 1000
+          db_path = "reports/session_data.sqlite"
+
+          [database]
+          backend = "postgres"
+          sqlite_path = "sample.sqlite"
+          postgres_dsn = "postgresql://postgres:postgres@localhost:5432/ai_log_trail"
+
+          [outputs]
+          reports_dir = "reports"
+          EOF
       - name: Migrate sample to Postgres
         env:
           POSTGRES_DSN: postgresql://postgres:postgres@localhost:5432/ai_log_trail
         run: |
-          python -m cli.migrate_sqlite_to_postgres --sqlite sample.sqlite --postgres-dsn "$POSTGRES_DSN" --execute
+          python -m cli.migrate_sqlite_to_postgres --config user/config.toml --sqlite sample.sqlite --postgres-dsn "$POSTGRES_DSN" --execute
       - name: Verify migrated counts
         env:
           POSTGRES_DSN: postgresql://postgres:postgres@localhost:5432/ai_log_trail
         run: |
           python - <<'PY'
+          import os
           import psycopg2
 
-          dsn = "$POSTGRES_DSN"
+          dsn = os.environ["POSTGRES_DSN"]
           with psycopg2.connect(dsn=dsn) as conn, conn.cursor() as cur:
               for table, expected_min in (("files", 1), ("sessions", 1), ("prompts", 1), ("events", 1)):
                   cur.execute(f"SELECT COUNT(*) FROM {table}")

@@ -15,6 +15,9 @@ comment:
   layout: "reach,diff,flags,files,footer"
   behavior: default
 
+codecov:
+  max_report_age: off
+
 ignore:
   - "tests/*"
   - "docs/*"

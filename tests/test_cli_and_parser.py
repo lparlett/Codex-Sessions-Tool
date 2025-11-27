@@ -275,3 +275,60 @@ def test_resolve_database_path_prefers_cli_override(tmp_path: Path) -> None:
         )
     )
     TC.assertEqual(resolved, override_path.resolve())
+
+
+def test_describe_event_token_and_turn_context(tmp_path: Path) -> None:
+    """describe_event should cover token_count and turn_context payloads."""
+
+    token_event = {
+        "type": "event_msg",
+        "timestamp": "t0",
+        "payload": {
+            "type": "token_count",
+            "rate_limits": {
+                "primary": {"used_percent": 10, "window_minutes": 60, "resets_at": 123}
+            },
+        },
+    }
+    desc = group_session.describe_event(token_event)
+    TC.assertIn("primary", desc)
+    TC.assertIn("10%", desc)
+
+    turn_ctx_event = {
+        "type": "turn_context",
+        "timestamp": "t1",
+        "payload": {"cwd": str(tmp_path / "work")},
+    }
+    ctx_desc = group_session.describe_event(turn_ctx_event)
+    TC.assertIn(f"cwd: {tmp_path / 'work'}", ctx_desc)
+
+
+def test_render_prelude_and_prompt_group_empty_events(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Prelude rendering and empty group events should be printed and captured."""
+
+    prelude = [
+        {
+            "type": "event_msg",
+            "timestamp": "t0",
+            "payload": {"type": "agent_message", "message": "Prelude hello"},
+        }
+    ]
+    captured: list[str] = []
+    group_session._render_prelude(prelude, captured)  # pylint: disable=protected-access
+    out = capsys.readouterr().out
+    TC.assertIn("-- Session Prelude --", out)
+    TC.assertIn("Prelude hello", out)
+
+    captured.clear()
+    group = {
+        "user": {"timestamp": "t1", "payload": {"message": "Hi there"}},
+        "events": [],
+    }
+    group_session._render_prompt_group(
+        1, group, captured
+    )  # pylint: disable=protected-access
+    out = capsys.readouterr().out
+    TC.assertIn("Prompt 1", out)
+    TC.assertIn("No subsequent events recorded.", out)
