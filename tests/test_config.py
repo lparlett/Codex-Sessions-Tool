@@ -3,6 +3,7 @@ import os
 import textwrap
 import unittest
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -417,6 +418,24 @@ def test_validate_helpers_non_directory_and_non_writable(tmp_path: Path) -> None
     db_path = file_path / "db.sqlite"
     with pytest.raises(ConfigError, match="parent is not a directory"):
         _validate_sqlite_path(db_path, create_if_missing=False)
+
+
+def test_validate_sqlite_path_unwritable_parent(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """_validate_sqlite_path should error when parent is not writable."""
+
+    target = tmp_path / "protected" / "db.sqlite"
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    def _fake_access(path: Path, mode: int) -> bool:  # pylint: disable=unused-argument
+        if path == target.parent:
+            return False
+        return True
+
+    monkeypatch.setattr(os, "access", _fake_access)
+    with pytest.raises(ConfigError, match="not writable"):
+        _validate_sqlite_path(target, create_if_missing=False)
 
 
 def test_load_batch_size_override_and_default() -> None:

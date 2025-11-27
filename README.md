@@ -45,7 +45,7 @@ The goal is a workflow where AI-assisted coding can be audited, explained, and o
 
    ```bash
    git clone <repo-url>
-   cd Codex-Sessions-Tool
+   cd AI-Log-Trail
    cp user/config.example.toml user/config.toml
    # edit user/config.toml to set:
    #   [sessions].root -> Codex/Copilot logs directory
@@ -108,7 +108,7 @@ This is an "AI-assisted" project-experiments will happen-but the mandate is tran
 - Raw logs remain user-owned; ingest only reads from configured paths.
 - Redactions are first-class citizens with provenance.
 
-Ideas, bug reports, and questions are welcome. Please review `AGENTS.md` for expectations before contributing.
+Ideas, bug reports, and questions are welcome. Please review `CONTRIBUTING.md` for expectations before contributing.
 
 ---
 

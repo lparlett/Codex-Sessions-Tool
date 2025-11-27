@@ -116,6 +116,14 @@ def test_shorten_truncates_long_text() -> None:
     TC.assertEqual(group_session.shorten(text, limit=5), "aa...")
 
 
+def test_shorten_handles_whitespace_and_zero_limit() -> None:
+    """shorten should handle whitespace-only and small/zero limits safely."""
+
+    TC.assertEqual(group_session.shorten("   "), "")
+    TC.assertEqual(group_session.shorten("abc", limit=0), "...")
+    TC.assertEqual(group_session.shorten("abc", limit=2), "ab...")
+
+
 def test_describe_event_handles_message_payload() -> None:
     """describe_event should include payload type and timestamp."""
     event = {
@@ -194,6 +202,14 @@ def test_find_first_session_file_returns_earliest(tmp_path: Path) -> None:
 
     found = session_parser.find_first_session_file(tmp_path)
     TC.assertEqual(found, first)
+
+
+def test_find_first_session_file_raises_when_empty(tmp_path: Path) -> None:
+    """find_first_session_file should raise when no files exist."""
+
+    (tmp_path / "2024" / "01" / "01").mkdir(parents=True, exist_ok=True)
+    with pytest.raises(session_parser.SessionDiscoveryError):
+        session_parser.find_first_session_file(tmp_path)
 
 
 def test_load_session_events_raises_on_bad_json(tmp_path: Path) -> None:
@@ -300,7 +316,8 @@ def test_describe_event_token_and_turn_context(tmp_path: Path) -> None:
         "payload": {"cwd": str(tmp_path / "work")},
     }
     ctx_desc = group_session.describe_event(turn_ctx_event)
-    TC.assertIn(f"cwd: {tmp_path / 'work'}", ctx_desc)
+    work_path = str(tmp_path / "work")
+    TC.assertIn(f"cwd: {work_path}", ctx_desc)
 
 
 def test_render_prelude_and_prompt_group_empty_events(
@@ -332,3 +349,19 @@ def test_render_prelude_and_prompt_group_empty_events(
     out = capsys.readouterr().out
     TC.assertIn("Prompt 1", out)
     TC.assertIn("No subsequent events recorded.", out)
+
+
+def test_describe_event_handles_unknown_payloads() -> None:
+    """describe_event should degrade gracefully on missing/unknown payload types."""
+
+    unknown_payload = {"type": "event_msg", "timestamp": "t0", "payload": {}}
+    desc_unknown = group_session.describe_event(unknown_payload)
+    TC.assertIn("event_msg", desc_unknown)
+
+    missing_payload = {"type": "turn_context", "timestamp": "t1"}
+    desc_missing = group_session.describe_event(missing_payload)
+    TC.assertIn("turn_context", desc_missing)
+
+    none_payload = {"type": "event_msg", "timestamp": "t2", "payload": None}
+    desc_none = group_session.describe_event(none_payload)
+    TC.assertIn("event_msg", desc_none)

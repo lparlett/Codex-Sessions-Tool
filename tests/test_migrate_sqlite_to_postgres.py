@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import sqlite3
+import sys
 import unittest
 from pathlib import Path
 from typing import Any
@@ -142,6 +143,57 @@ def test_migrate_calls_copy_pipeline(
     TC.assertTrue(dummy_pg.closed)
 
 
+def test_migrate_propagates_copy_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """migrate should propagate errors from copy and still close connections."""
+
+    dummy_sqlite = _DummyConn()
+    dummy_pg = _DummyPgConn()
+
+    monkeypatch.setattr(migrate_cli, "_open_sqlite", lambda path: dummy_sqlite)
+    monkeypatch.setattr(migrate_cli, "_open_postgres", lambda dsn: dummy_pg)
+    monkeypatch.setattr(migrate_cli, "_ensure_target_empty", lambda conn, tables: None)
+    monkeypatch.setattr(
+        migrate_cli,
+        "_copy_all_tables",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("copy failed")),
+    )
+
+    with pytest.raises(RuntimeError):
+        migrate_cli.migrate(tmp_path / "source.sqlite", "postgres://dsn", batch_size=10)
+    TC.assertTrue(dummy_sqlite.closed)
+    TC.assertTrue(dummy_pg.closed)
+
+
+def test_copy_all_tables_preserves_order(monkeypatch: pytest.MonkeyPatch) -> None:
+    """_copy_all_tables should iterate tables in order and sync identity."""
+
+    order: list[str] = []
+
+    def _copy_table(*args: Any, **kwargs: Any) -> None:
+        table_name = kwargs.get("table")
+        if table_name is None and len(args) >= 3:
+            table_name = args[2]
+        if table_name is not None:
+            order.append(str(table_name))
+
+    def _sync_identity(
+        _pg_conn: Any, table: str
+    ) -> None:  # pylint: disable=unused-argument
+        order.append(f"sync:{table}")
+
+    monkeypatch.setattr(migrate_cli, "_copy_table", _copy_table)
+    monkeypatch.setattr(migrate_cli, "_sync_identity", _sync_identity)
+    migrate_cli._copy_all_tables(  # pylint: disable=protected-access
+        sqlite_conn=sqlite3.connect(":memory:"),
+        pg_conn=_DummyPgConn(),
+        tables=("files", "events"),
+        batch_size=1,
+    )
+    TC.assertEqual(order, ["files", "sync:files", "events", "sync:events"])
+
+
 def test_ensure_target_empty_raises_on_nonempty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -157,3 +209,125 @@ def test_ensure_target_empty_raises_on_nonempty(
         migrate_cli._ensure_target_empty(
             _DummyPgConn(), ("files", "sessions")
         )  # pylint: disable=protected-access
+
+
+def test_copy_table_fk_violation_rolls_back() -> None:
+    """_copy_table should propagate FK failures for visibility."""
+
+    class _SqliteCur:
+        description = [("id",), ("file_id",)]
+
+        def execute(self, _stmt: str) -> None:
+            return None
+
+        def fetchall(self) -> list[tuple[int, int]]:
+            return [(1, 999)]  # invalid FK
+
+    class _SqliteConn:
+        def cursor(self) -> _SqliteCur:
+            return _SqliteCur()
+
+    class _PgCur:
+        def __enter__(self) -> "_PgCur":
+            return self
+
+        def __exit__(self, *args: Any) -> None:
+            return None
+
+        def execute(self, stmt: Any, params: Any | None = None) -> None:  # noqa: ARG002
+            _ = stmt
+            _ = params
+
+    class _PgConn:
+        def cursor(self) -> _PgCur:
+            return _PgCur()
+
+        def commit(self) -> None:
+            raise RuntimeError("fk violation")
+
+    sqlite_conn = sqlite3.connect(":memory:")
+    sqlite_conn.execute("CREATE TABLE prompts (id INTEGER, file_id INTEGER)")
+    sqlite_conn.execute("INSERT INTO prompts (id, file_id) VALUES (1, 999)")
+    pg_conn = _PgConn()
+
+    class _DummySqlModule:
+        class SQL:
+            def __init__(self, _text: str = "") -> None:
+                self.text = _text
+
+            def join(self, _iterable: Any) -> "_DummySqlModule.SQL":
+                return self
+
+            def format(self, *_args: Any, **_kwargs: Any) -> "_DummySqlModule.SQL":
+                return self
+
+        class Identifier(SQL): ...
+
+    dummy_sql = _DummySqlModule()
+    dummy_extras = type("Extras", (), {"execute_values": lambda *args, **kwargs: None})
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        migrate_cli,
+        "_execute_batch",
+        lambda pg_conn_arg, table, columns, rows, execute_values: (
+            _ for _ in ()
+        ).throw(  # pylint: disable=unused-argument
+            RuntimeError("fk violation")
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "psycopg2", type("Psyco", (), {"sql": dummy_sql}))
+    monkeypatch.setitem(sys.modules, "psycopg2.extras", dummy_extras)
+
+    with pytest.raises(RuntimeError):
+        migrate_cli._copy_table(  # pylint: disable=protected-access
+            sqlite_conn,
+            pg_conn,
+            "prompts",
+            batch_size=10,
+        )
+    monkeypatch.undo()
+
+
+def test_run_dry_run_row_counts_match(tmp_path: Path) -> None:
+    """run_dry_run should surface matching counts when target has same rows."""
+
+    src = sqlite3.connect(tmp_path / "src.sqlite")
+    src.execute("CREATE TABLE files (id INTEGER)")
+    src.execute("INSERT INTO files (id) VALUES (1)")
+    src.commit()
+
+    class _PgConn(_DummyPgConn):
+        def __init__(self) -> None:
+            super().__init__()
+            self.row_count = 1
+
+        def fetchone(self) -> tuple[int]:
+            return (1,)
+
+    pg_conn = _PgConn()
+
+    def _open_sqlite(_path: Path) -> sqlite3.Connection:
+        return src
+
+    def _open_postgres(_dsn: str) -> _PgConn:
+        return pg_conn
+
+    def _table_counts(conn: sqlite3.Connection, _tables: Any) -> dict[str, int]:
+        return {"files": conn.execute("SELECT COUNT(*) FROM files").fetchone()[0]}
+
+    def _table_counts_pg(_conn: Any, _tables: Any) -> dict[str, int]:
+        return {"files": 1}
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(migrate_cli, "_open_sqlite", _open_sqlite)
+    monkeypatch.setattr(migrate_cli, "_open_postgres", _open_postgres)
+    monkeypatch.setattr(migrate_cli, "_table_counts", _table_counts)
+    monkeypatch.setattr(migrate_cli, "_table_counts_postgres", _table_counts_pg)
+
+    summary = migrate_cli.run_dry_run(tmp_path / "src.sqlite", "postgres://dsn")
+    TC.assertEqual(summary["source_counts"]["files"], 1)
+    TC.assertEqual(summary["target_counts"]["files"], 1)
+
+    src.close()
+    pg_conn.close()

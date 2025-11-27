@@ -186,5 +186,14 @@ def test_dummy_event_from_dict_builds_event() -> None:
     }
     event = DummyEvent.from_dict(payload)
     TC.assertIsInstance(event, DummyEvent)
-    TC.assertEqual(event.to_dict()["session_id"], "sid-123")
-    TC.assertEqual(event.to_dict().get("event_type", "custom"), "custom")
+    data = event.to_dict()
+    TC.assertEqual(data.get("session_id"), "sid-123")
+    TC.assertEqual(data.get("event_type", "custom"), "custom")
+
+
+def test_dummy_parser_validate_event_falsey() -> None:
+    """validate_event should return False when 'valid' flag missing/false."""
+
+    parser = DummyParser()
+    TC.assertFalse(parser.validate_event({}))
+    TC.assertFalse(parser.validate_event({"valid": False}))
