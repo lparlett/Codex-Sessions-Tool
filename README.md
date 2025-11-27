@@ -1,7 +1,7 @@
 ﻿# AI Log Trail
 <!-- markdownlint-disable MD042 -->
 [![Status](https://img.shields.io/badge/status-experimental-blueviolet)](#)
-[![Version](https://img.shields.io/badge/version-0.1.0--dev-orange)](#)
+[![Version](https://img.shields.io/badge/version-0.4.1-orange)](#)
 [![Python](https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white)](#)
 ![Codecov](https://img.shields.io/codecov/c/github/lparlett/ai-log-trail?logo=codecov&logoColor=%23F01F7A)
 [![DOI](https://zenodo.org/badge/1086626705.svg)](https://doi.org/10.5281/zenodo.17728973)
