@@ -4,6 +4,9 @@ import textwrap
 import unittest
 from pathlib import Path
 from typing import Any
+import importlib
+import importlib.util
+import sys
 
 import pytest
 
@@ -14,6 +17,7 @@ from src.services.config import (
     _validate_sqlite_path,
     _load_batch_size,
     _load_database_config,
+    _load_outputs_config,
     load_config,
 )
 
@@ -438,6 +442,44 @@ def test_validate_sqlite_path_unwritable_parent(
         _validate_sqlite_path(target, create_if_missing=False)
 
 
+def test_validate_sqlite_path_creates_parent(tmp_path: Path) -> None:
+    """_validate_sqlite_path should create missing parent when allowed."""
+
+    target = tmp_path / "nested" / "db.sqlite"
+    resolved = _validate_sqlite_path(target, create_if_missing=True)
+    TC.assertTrue(target.parent.exists())
+    TC.assertEqual(resolved, target.resolve())
+
+
+def test_validate_sqlite_path_rejects_directory_target(tmp_path: Path) -> None:
+    """_validate_sqlite_path should reject when target already is a directory."""
+
+    target_dir = tmp_path / "dir_as_db"
+    target_dir.mkdir()
+    with pytest.raises(ConfigError, match="is a directory"):
+        _validate_sqlite_path(target_dir, create_if_missing=False)
+
+
+def test_validate_existing_directory_not_writable(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """_validate_existing_directory should reject directories without write access."""
+
+    target_dir = tmp_path / "readonly"
+    target_dir.mkdir()
+
+    def _fake_access(path: Path, mode: int) -> bool:  # pylint: disable=unused-argument
+        if path == target_dir:
+            return False
+        return True
+
+    monkeypatch.setattr(os, "access", _fake_access)
+    with pytest.raises(ConfigError, match="not writable"):
+        _validate_existing_directory(
+            target_dir, "outputs.reports_dir", create_if_missing=False
+        )
+
+
 def test_load_batch_size_override_and_default() -> None:
     """_load_batch_size should honor positive overrides and default otherwise."""
 
@@ -470,3 +512,48 @@ def test_load_database_config_defaults_and_postgres(tmp_path: Path) -> None:
         TC.assertEqual(sqlite_cfg.sqlite_path, custom_sqlite.resolve())
     finally:
         os.chdir(cwd)
+
+
+def test_load_outputs_config_with_non_dict_uses_default(tmp_path: Path) -> None:
+    """Non-dict outputs table should fall back to defaults and create dir."""
+
+    cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        outputs = _load_outputs_config("notadict")  # type: ignore[arg-type]
+        TC.assertTrue((tmp_path / "reports").exists())
+        TC.assertEqual(outputs.reports_dir, (tmp_path / "reports").resolve())
+    finally:
+        os.chdir(cwd)
+
+
+def test_toml_fallback_to_tomli(monkeypatch: Any) -> None:
+    """Ensure fallback to tomli is used when tomllib is unavailable."""
+
+    spec = importlib.util.spec_from_file_location(
+        "config_temp", Path("src/services/config.py")
+    )
+    if spec is None or spec.loader is None:
+        TC.fail("Failed to load config module spec for fallback test.")
+
+    class _TomliStub:  # pylint: disable=too-few-public-methods
+        class TOMLDecodeError(Exception): ...
+
+        @staticmethod
+        def loads(_text: str) -> dict[str, Any]:
+            return {}
+
+    def _fake_import(name: str) -> Any:
+        if name == "tomllib":
+            raise ModuleNotFoundError("tomllib missing")
+        if name == "tomli":
+            return _TomliStub()
+        return importlib.import_module(name)
+
+    monkeypatch.setattr(importlib, "import_module", _fake_import)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["config_temp"] = module
+    spec.loader.exec_module(module)
+    TC.assertTrue(hasattr(module, "_toml_loads"))
+    TC.assertTrue(hasattr(module, "_TOMLDecodeError"))
+    sys.modules.pop("config_temp", None)

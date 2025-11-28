@@ -8,12 +8,14 @@ import sqlite3
 import unittest
 import types
 from pathlib import Path
+from typing import cast
 
 import pytest
 
 from src.services.database import ensure_schema, get_connection
 from src.services.redactions import (
     RedactionCreate,
+    RedactionRecord,
     create_redaction,
     delete_redaction,
     get_redaction,
@@ -70,8 +72,7 @@ def test_create_and_get_redaction(tmp_path: Path) -> None:
     )
     record = get_redaction(conn, redaction_id)
     TC.assertIsNotNone(record)
-    if record is None:
-        TC.fail("Expected record to be returned.")
+    record = cast("RedactionRecord", record)
     TC.assertEqual(record.prompt_id, prompt_id)
     TC.assertEqual(record.scope, "prompt")
     TC.assertEqual(record.replacement_text, "[hidden]")
@@ -107,8 +108,7 @@ def test_list_and_update_redaction(tmp_path: Path) -> None:
     TC.assertTrue(updated)
     refreshed = get_redaction(conn, redaction_id)
     TC.assertIsNotNone(refreshed)
-    if refreshed is None:
-        TC.fail("Expected refreshed record to be returned.")
+    refreshed = cast(RedactionRecord, refreshed)
     TC.assertEqual(refreshed.replacement_text, "[masked]")
     TC.assertEqual(refreshed.reason, "privacy")
     TC.assertEqual(
@@ -287,8 +287,7 @@ def test_update_redaction_sets_prompt_and_actor(tmp_path: Path) -> None:
     TC.assertTrue(updated)
     refreshed = get_redaction(conn, redaction_id)
     TC.assertIsNotNone(refreshed)
-    if refreshed is None:
-        TC.fail("Expected refreshed record to be returned.")
+    refreshed = cast("RedactionRecord", refreshed)
     TC.assertEqual(refreshed.prompt_id, new_prompt)
     TC.assertEqual(refreshed.actor, "reviewer")
     conn.close()
@@ -318,6 +317,7 @@ def test_create_redaction_raises_when_lastrowid_missing() -> None:
                 replacement_text="[text]",
             ),
         )
+    conn.close()
 
 
 def test_insert_prompt_raises_when_file_id_missing() -> None:
@@ -330,8 +330,10 @@ def test_insert_prompt_raises_when_file_id_missing() -> None:
         def close(self) -> None:
             return None
 
+    dummy = _Conn()
     with pytest.raises(RuntimeError):
-        _insert_prompt(_Conn())  # type: ignore[arg-type]
+        _insert_prompt(dummy)  # type: ignore[arg-type]
+    dummy.close()
 
 
 def test_insert_prompt_raises_when_prompt_id_missing() -> None:
@@ -350,8 +352,10 @@ def test_insert_prompt_raises_when_prompt_id_missing() -> None:
         def close(self) -> None:
             return None
 
+    dummy = _Conn()
     with pytest.raises(RuntimeError):
-        _insert_prompt(_Conn())  # type: ignore[arg-type]
+        _insert_prompt(dummy)  # type: ignore[arg-type]
+    dummy.close()
 
 
 def test_create_redaction_requires_field_path_for_field_scope() -> None:
