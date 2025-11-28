@@ -38,6 +38,11 @@ The goal is a workflow where AI-assisted coding can be audited, explained, and o
 - **Governance docs** - `AGENTS.md` sets behavioral guardrails; `ROADMAP.md` tracks milestones through v1.0.0 and beyond.
 - **Config scaffolding** - `user/config.example.toml` seeds per-user setup; actual secrets stay local via `.gitignore`.
 - **Migration docs** - `docs/migration.md` explains SQLite to Postgres migration, dry-run, and rollback steps.
+- **Tests** - Organized under `tests/` by area:
+  - `tests/services/` (config, redactions, rules, DB helpers)
+  - `tests/parsers/` (session parsing, DB handlers)
+  - `tests/cli/` (ingest, CLI scripts, migration)
+  - `tests/core/` (models, base types, agent config)
 
 ---
 
