@@ -1,0 +1,31 @@
+﻿- id: email
+  type: regex
+  pattern: "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"
+  scope: global
+  enabled: true
+  reason: "default email redaction"
+- id: bearer_token
+  type: regex
+  pattern: "bearer\\s+[A-Za-z0-9._-]{8,}"
+  scope: global
+  enabled: true
+  reason: "default token redaction"
+- id: file_paths
+  type: regex
+  pattern: "(?:[A-Za-z]:\\\\[^\\s]+|/[^\\s]+)"
+  scope: global
+  enabled: true
+  reason: "default path redaction"
+- id: bracketed_troubleshooting
+  type: regex
+  pattern: "\\[[^\\]]{8,}\\]"
+  scope: prompt
+  enabled: true
+  reason: "default troubleshooting snippet redaction"
+- id: inline_marker
+  type: marker
+  pattern: "\\[redact\\s+(?P<content>.+?)\\]"
+  scope: prompt
+  dotall: true
+  enabled: true
+  reason: "default inline marker redaction"

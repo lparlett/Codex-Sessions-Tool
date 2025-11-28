@@ -28,6 +28,10 @@ The goal is a workflow where AI-assisted coding can be audited, explained, and o
 
 - **Structured ingest** - Parse Codex session directories into tables (`files`, `sessions`, `prompts`, `token_messages`, `turn_context_messages`, `agent_reasoning_messages`, `function_plan_messages`, `function_calls`) with raw JSON preserved.
 - **Redaction storage** - `redactions` table tracks prompt/field/global scopes with replacement text, actor, reason, and timestamps for provenance.
+- **Rule-based redaction** - YAML/JSON rule file (`user/redactions.yml` seeded with
+  defaults for emails, tokens, paths, troubleshooting snippets, and `[redact ...]`
+  markers) applied in file order with per-rule counts in summaries; manual DB
+  redactions still take precedence.
 - **CLI utilities**
   - `python -m cli.group_session` groups events under each prompt for quick console or file review and writes to `[outputs].reports_dir` by default.
   - `python -m cli.ingest_session` ingests one or many sessions into SQLite with `--limit`, `--debug`, and `--verbose` modes using the configured database path.
