@@ -9,20 +9,18 @@ AI-assisted: Updated with Codex (GPT-5).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import importlib
 import os
 from pathlib import Path
 import sys
 
-if sys.version_info >= (3, 11):
-    import tomllib
+try:
+    _toml_module = importlib.import_module("tomllib")
+except ModuleNotFoundError:  # pragma: no cover - exercised via test shim
+    _toml_module = importlib.import_module("tomli")
 
-    _toml_loads = tomllib.loads
-    _TOMLDecodeError = tomllib.TOMLDecodeError
-else:
-    import tomli
-
-    _toml_loads = tomli.loads
-    _TOMLDecodeError = tomli.TOMLDecodeError
+_toml_loads = _toml_module.loads
+_TOMLDecodeError = _toml_module.TOMLDecodeError
 
 
 class ConfigError(RuntimeError):
