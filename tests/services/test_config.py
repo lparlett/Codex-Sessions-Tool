@@ -17,6 +17,7 @@ from src.services.config import (
     _validate_sqlite_path,
     _load_batch_size,
     _load_database_config,
+    _load_outputs_config,
     load_config,
 )
 
@@ -509,6 +510,19 @@ def test_load_database_config_defaults_and_postgres(tmp_path: Path) -> None:
             {"sqlite_path": str(custom_sqlite)},
         )
         TC.assertEqual(sqlite_cfg.sqlite_path, custom_sqlite.resolve())
+    finally:
+        os.chdir(cwd)
+
+
+def test_load_outputs_config_with_non_dict_uses_default(tmp_path: Path) -> None:
+    """Non-dict outputs table should fall back to defaults and create dir."""
+
+    cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        outputs = _load_outputs_config("notadict")  # type: ignore[arg-type]
+        TC.assertTrue((tmp_path / "reports").exists())
+        TC.assertEqual(outputs.reports_dir, (tmp_path / "reports").resolve())
     finally:
         os.chdir(cwd)
 
