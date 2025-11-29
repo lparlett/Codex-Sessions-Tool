@@ -342,22 +342,36 @@ def insert_session(context: SessionInsert) -> None:
     """Persist session-level metadata captured before the first user prompt."""
 
     details = extract_session_details(context.prelude)
-    context.conn.execute(
+    session_cursor = context.conn.execute(
         """
         INSERT INTO sessions (
-            file_id, session_id, session_timestamp, cwd, approval_policy,
-            sandbox_mode, network_access, raw_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            file_id, session_id, session_timestamp, raw_json
+        ) VALUES (?, ?, ?, ?)
         """,
         (
             context.file_id,
             details["session_id"],
             details["session_timestamp"],
+            json_dumps({"events": context.prelude}),
+        ),
+    )
+    session_id = session_cursor.lastrowid
+    if session_id is None:
+        raise RuntimeError("Failed to insert session row")
+
+    # Insert context data into session_context table
+    context.conn.execute(
+        """
+        INSERT INTO session_context (
+            session_id, cwd, approval_policy, sandbox_mode, network_access
+        ) VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            session_id,
             details["cwd"],
             details["approval_policy"],
             details["sandbox_mode"],
             details["network_access"],
-            json_dumps({"events": context.prelude}),
         ),
     )
 
@@ -422,17 +436,12 @@ def insert_turn_context(context: EventInsert) -> None:
     context.conn.execute(
         """
         INSERT INTO turn_context_messages (
-            prompt_id, timestamp, cwd, approval_policy, sandbox_mode,
-            network_access, writable_roots, raw_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            prompt_id, timestamp, writable_roots, raw_json
+        ) VALUES (?, ?, ?, ?)
         """,
         (
             context.prompt_id,
             context.timestamp,
-            ctx["cwd"],
-            ctx["approval_policy"],
-            ctx["sandbox_mode"],
-            ctx["network_access"],
             ctx["writable_roots"],
             json_dumps(context.raw),
         ),

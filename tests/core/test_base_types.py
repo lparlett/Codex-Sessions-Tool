@@ -42,6 +42,7 @@ def test_agent_config_assigns_fields() -> None:
         """Concrete AgentConfig for serialization tests."""
 
         def __init__(self) -> None:
+            """Initialize with default workspace and streaming enabled."""
             super().__init__(
                 agent_type="mini",
                 root_path=Path("/workspace"),
@@ -49,13 +50,18 @@ def test_agent_config_assigns_fields() -> None:
             )
 
         def validate(self) -> None:
+            """No-op validation."""
             return None
 
         def to_dict(self) -> dict[str, str]:
+            """Serialize to dictionary."""
             return {"type": self.agent_type, "root": str(self.root_path)}
 
         @classmethod
-        def from_dict(cls, data: dict[str, str]) -> "MinimalConfig":
+        def from_dict(
+            cls, data: dict[str, str]
+        ) -> "MinimalConfig":  # pylint: disable=unused-argument
+            """Deserialize from dictionary."""
             return cls()
 
     cfg = MinimalConfig()

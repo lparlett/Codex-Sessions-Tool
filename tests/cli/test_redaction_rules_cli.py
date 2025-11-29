@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+import unittest
 from pathlib import Path
 from typing import Any, Callable
 
@@ -12,6 +13,9 @@ from pytest import MonkeyPatch
 import cli.redaction_rules as rules_cli
 from src.services.config import DatabaseConfig, OutputPaths, SessionsConfig
 from src.services.database import ensure_schema, get_connection
+
+
+TC = unittest.TestCase()
 
 
 def _fake_config(tmp_path: Path) -> SessionsConfig:
@@ -66,8 +70,8 @@ def test_add_and_list_rules(
     rules_cli.main()
 
     contents = json.loads(rules_file.read_text(encoding="utf-8"))[0]
-    assert contents["id"] == "r1"
-    assert contents["pattern"] == "secret"
+    TC.assertEqual(contents["id"], "r1")
+    TC.assertEqual(contents["pattern"], "secret")
 
     monkeypatch.setattr(
         sys,
@@ -81,4 +85,4 @@ def test_add_and_list_rules(
     )
     rules_cli.main()
     out = capsys.readouterr().out
-    assert '"id": "r1"' in out
+    TC.assertIn('"id": "r1"', out)

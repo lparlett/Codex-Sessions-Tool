@@ -23,9 +23,11 @@ class TestableCodexParser(CodexParser):
     """Concrete CodexParser for testing abstract requirements."""
 
     def find_log_files(self, root_path: Path) -> Generator[Path, None, None]:
+        """Find JSONL files in root path."""
         yield from root_path.glob("*.jsonl")
 
     def get_agent_type(self) -> str:
+        """Return the agent type identifier."""
         return self.agent_type
 
 

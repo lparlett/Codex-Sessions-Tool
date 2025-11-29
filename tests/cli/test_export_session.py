@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+import unittest
 from pathlib import Path
 from typing import Any, Callable
 
@@ -12,6 +13,9 @@ from pytest import MonkeyPatch
 import cli.export_session as export_cli
 from src.services.config import DatabaseConfig, OutputPaths, SessionsConfig
 from src.services.database import ensure_schema, get_connection
+
+
+TC = unittest.TestCase()
 
 
 def _fake_config(tmp_path: Path) -> SessionsConfig:
@@ -91,6 +95,6 @@ def test_export_applies_redactions(monkeypatch: MonkeyPatch, tmp_path: Path) -> 
     export_cli.main()
     export_path = config.outputs.reports_dir / "export.txt"
     contents = export_path.read_text(encoding="utf-8")
-    assert "<REDACTED>" in contents
-    assert "secret prompt text" not in contents
-    assert "secret content" not in contents
+    TC.assertIn("<REDACTED>", contents)
+    TC.assertNotIn("secret prompt text", contents)
+    TC.assertNotIn("secret content", contents)

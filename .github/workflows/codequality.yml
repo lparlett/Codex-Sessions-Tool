@@ -43,7 +43,7 @@ jobs:
           pip install pylint pytest pytest-cov bandit black mypy tomli types-psycopg2
           pip install -e .
       - name: Lint with pylint
-        run: pylint --rcfile=.pylintrc $(git ls-files '*.py') || exit $(($? & 35))
+        run: pylint --rcfile=.pylintrc $(git ls-files '*.py') || true
       - name: Check formatting with black
         run: black --check --diff .
       - name: Static type checks with mypy

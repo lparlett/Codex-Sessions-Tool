@@ -44,6 +44,14 @@ from src.parsers.handlers.db_utils import (
     update_function_call_output,
 )
 from src.services.database import ensure_schema, get_connection
+from src.services.redaction_rules import (
+    DEFAULT_RULE_PATH,
+    RedactionRule,
+    apply_rules,
+    load_rules,
+    sync_rules_to_db,
+)
+from src.services.redactions import RedactionCreate, insert_redaction_application
 from src.services.sanitization import sanitize_json
 from src.services.validation import EventValidationError, validate_event
 
@@ -292,7 +300,17 @@ def _process_events(
     prompt_id: int,
     events: Iterable[dict],
 ) -> dict[str, int]:
-    """Process events for a prompt and populate child tables."""
+    """Process events for a prompt and populate child tables.
+
+    Delegates to EventProcessor which:
+    - Dispatches each event to the appropriate handler (event_msg, turn_context,
+      response_item).
+    - Tracks function call state across the entire prompt via FunctionCallTracker.
+    - Updates counts for each message type encountered.
+
+    Returns:
+        Dictionary mapping message type names to their occurrence counts.
+    """
 
     deps = build_event_handler_deps()
     processor = EventProcessor(
@@ -382,6 +400,7 @@ class SessionIngester:
     batch_size: int
     verbose: bool
     errors: list[ProcessingError]
+    rules: list[RedactionRule] | None = None
     file_id: int = field(init=False)
     summary: SessionSummary = field(init=False)
 
@@ -402,6 +421,16 @@ class SessionIngester:
             batch_size=self.batch_size,
         )
         prelude, groups = group_by_user_messages(prepared_events)
+        if self.rules:
+            # Sync rules to database before applying them
+            sync_rules_to_db(self.conn, self.rules)
+            _apply_rule_applications_pre_prompt(
+                conn=self.conn,
+                rules=self.rules,
+                file_id=self.file_id,
+                session_file_path=str(self.session_file),
+                prelude=prelude or [],
+            )
         self._store_session_data(prelude, groups)
         self._finalize_summary()
         return self.summary
@@ -427,6 +456,16 @@ class SessionIngester:
                 group["user"],
             )
             prompt_id = insert_prompt(prompt_insert)
+            if self.rules:
+                _apply_rule_applications_for_prompt(
+                    conn=self.conn,
+                    rules=self.rules,
+                    file_id=self.file_id,
+                    prompt_id=prompt_id,
+                    session_file_path=str(self.session_file),
+                    prompt_event=group["user"],
+                    events=group["events"],
+                )
             counts = _process_events(
                 self.conn,
                 self.file_id,
@@ -448,6 +487,7 @@ def _ingest_single_session(
     *,
     verbose: bool = False,
     batch_size: int = 1000,
+    rules: list[RedactionRule] | None = None,
 ) -> SessionSummary:
     """Internal helper to ingest one session using an existing connection."""
     conn.execute("BEGIN IMMEDIATE")
@@ -458,6 +498,7 @@ def _ingest_single_session(
             batch_size=batch_size,
             verbose=verbose,
             errors=[],
+            rules=rules,
         )
         summary = ingester.process_session()
         conn.commit()
@@ -473,6 +514,7 @@ def ingest_session_file(
     *,
     verbose: bool = False,
     batch_size: int = 1000,
+    rules_path: Path | None = None,
 ) -> SessionSummary:
     """Parse a session log and persist structured data into SQLite."""
 
@@ -480,11 +522,13 @@ def ingest_session_file(
     ensure_schema(conn)
 
     try:
+        rules = _load_rules_safely(rules_path or DEFAULT_RULE_PATH, verbose=verbose)
         summary = _ingest_single_session(
             conn,
             session_file,
             verbose=verbose,
             batch_size=batch_size,
+            rules=rules,
         )
         return summary
     finally:
@@ -498,6 +542,7 @@ def ingest_sessions_in_directory(
     limit: int | None = None,
     verbose: bool = False,
     batch_size: int = 1000,
+    rules_path: Path | None = None,
 ) -> Iterator[SessionSummary]:
     """Ingest multiple session files beneath ``root``."""
 
@@ -505,6 +550,7 @@ def ingest_sessions_in_directory(
     ensure_schema(conn)
 
     try:
+        rules = _load_rules_safely(rules_path or DEFAULT_RULE_PATH, verbose=verbose)
         files_iter = iter_session_files(root)
         if limit is not None:
             files_iter = islice(files_iter, limit)
@@ -517,6 +563,7 @@ def ingest_sessions_in_directory(
                 session_file,
                 verbose=verbose,
                 batch_size=batch_size,
+                rules=rules,
             )
             yield summary
 
@@ -524,3 +571,213 @@ def ingest_sessions_in_directory(
             raise SessionDiscoveryError(f"No session files found under {root}")
     finally:
         conn.close()
+
+
+def _load_rules_safely(
+    rules_path: Path, *, verbose: bool
+) -> list[RedactionRule] | None:
+    """Load rules; return None on failure to avoid blocking ingest."""
+
+    try:
+        return load_rules(rules_path)
+    except Exception as exc:  # pylint: disable=broad-except
+        if verbose:
+            logger.warning(
+                "Failed to load rules (%s); continuing ingest without rule logging", exc
+            )
+        return None
+
+
+def _apply_rule_applications_pre_prompt(
+    *,
+    conn: Connection,
+    rules: list[RedactionRule],
+    file_id: int,
+    session_file_path: str,
+    prelude: list[dict],
+) -> None:
+    """Apply rules to prelude events (no prompt id)."""
+
+    for event in prelude:
+        _apply_rule_applications_for_event(
+            conn=conn,
+            rules=rules,
+            file_id=file_id,
+            prompt_id=None,
+            session_file_path=session_file_path,
+            event=event,
+        )
+
+
+def _apply_rule_applications_for_prompt(
+    *,
+    conn: Connection,
+    rules: list[RedactionRule],
+    file_id: int,
+    prompt_id: int,
+    session_file_path: str,
+    prompt_event: dict[str, Any],
+    events: list[dict],
+) -> None:
+    """Apply rules to prompt text and associated events."""
+
+    payload = prompt_event.get("payload") if isinstance(prompt_event, dict) else None
+    message = ""
+    if isinstance(payload, dict):
+        message = payload.get("message", "") or ""
+    _apply_rule_applications_for_text(
+        conn=conn,
+        rules=rules,
+        file_id=file_id,
+        prompt_id=prompt_id,
+        session_file_path=session_file_path,
+        text=message,
+        scope="prompt",
+        field_path="prompt.message",
+    )
+    for event in events:
+        _apply_rule_applications_for_event(
+            conn=conn,
+            rules=rules,
+            file_id=file_id,
+            prompt_id=prompt_id,
+            session_file_path=session_file_path,
+            event=event,
+        )
+
+
+def _apply_rule_applications_for_text(
+    *,
+    conn: Connection,
+    rules: list[RedactionRule],
+    file_id: int,
+    prompt_id: int | None,
+    session_file_path: str,
+    text: str,
+    scope: str,
+    field_path: str,
+) -> None:
+    """Apply rules to a text fragment and persist redaction applications."""
+
+    scoped_rules = [rule for rule in rules if _scope_matches(rule.scope, scope)]
+    if not scoped_rules or not text:
+        return
+    _, summary = apply_rules(text, scoped_rules)
+    for rule in scoped_rules:
+        if rule.id not in summary:
+            continue
+        _record_rule_application(
+            conn=conn,
+            rule=rule,
+            file_id=file_id,
+            prompt_id=prompt_id,
+            field_path=field_path if rule.scope != "global" else "*",
+            replacement_text=rule.effective_replacement,
+            session_file_path=session_file_path,
+        )
+
+
+def _apply_rule_applications_for_event(
+    *,
+    conn: Connection,
+    rules: list[RedactionRule],
+    file_id: int,
+    prompt_id: int | None,
+    session_file_path: str,
+    event: dict[str, Any],
+) -> None:
+    """Apply rules to known event payload fields and record applications."""
+
+    event_type = event.get("type")
+    payload = event.get("payload") if isinstance(event, dict) else None
+    payload_type = payload.get("type") if isinstance(payload, dict) else None
+
+    def _apply(text: str, field_path: str, scope: str = "field") -> None:
+        _apply_rule_applications_for_text(
+            conn=conn,
+            rules=rules,
+            file_id=file_id,
+            prompt_id=prompt_id,
+            session_file_path=session_file_path,
+            text=text,
+            scope=scope,
+            field_path=field_path,
+        )
+
+    if not isinstance(payload, dict):
+        return
+
+    if event_type == "event_msg":
+        if payload_type == "agent_reasoning":
+            text = payload.get("text")
+            if isinstance(text, str) and text.strip():
+                _apply(text, "agent.reasoning.text")
+        elif payload_type == "agent_message":
+            message = payload.get("message")
+            if isinstance(message, str) and message.strip():
+                _apply(message, "agent.message")
+
+    elif event_type == "response_item":
+        if payload_type == "message":
+            content = payload.get("content")
+            if isinstance(content, list):
+                texts = [
+                    str(item.get("text"))
+                    for item in content
+                    if isinstance(item, dict) and isinstance(item.get("text"), str)
+                ]
+                if texts:
+                    _apply(" ".join(texts), "response.message")
+        elif payload_type == "function_call":
+            name = payload.get("name")
+            if name:
+                _apply(name, "function_call.name")
+            arguments = payload.get("arguments")
+            if isinstance(arguments, str) and arguments.strip():
+                _apply(arguments, "function_call.arguments")
+        elif payload_type == "function_call_output":
+            output = payload.get("output")
+            if isinstance(output, str) and output.strip():
+                _apply(output, "function_call.output")
+    elif event_type == "turn_context":
+        cwd = payload.get("cwd")
+        if isinstance(cwd, str) and cwd.strip():
+            _apply(cwd, "turn_context.cwd", scope="field")
+
+
+def _record_rule_application(
+    *,
+    conn: Connection,
+    rule: RedactionRule,
+    file_id: int,
+    prompt_id: int | None,
+    field_path: str,
+    replacement_text: str,  # pylint: disable=unused-argument
+    session_file_path: str,
+) -> None:
+    """Persist rule application using upsert semantics."""
+
+    payload = RedactionCreate(
+        file_id=file_id,
+        prompt_id=prompt_id,
+        rule_id=rule.id,
+        rule_fingerprint=rule.fingerprint,
+        field_path=field_path,
+        reason=rule.reason,
+        actor=rule.actor,
+        session_file_path=session_file_path,
+        applied_at=None,
+    )
+    insert_redaction_application(conn, payload)
+
+
+def _scope_matches(rule_scope: str, context_scope: str) -> bool:
+    """Return True when a rule scope applies to the current context."""
+
+    if rule_scope == "global":
+        return True
+    if rule_scope == "prompt" and context_scope == "prompt":
+        return True
+    if rule_scope == "field" and context_scope == "field":
+        return True
+    return False

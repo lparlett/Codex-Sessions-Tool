@@ -11,22 +11,38 @@ from __future__ import annotations
 
 import importlib
 import json
+import hashlib
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Sequence, TypedDict
+from typing import Any, Iterable, Sequence, TypedDict, cast
 
+# Global defaults for redaction rules
 DEFAULT_REPLACEMENT = "<REDACTED>"
 DEFAULT_RULE_PATH = Path("user/redactions.yml")
+
+# Allowed values for rule configuration
 ALLOWED_TYPES = ("regex", "marker", "literal")
 ALLOWED_SCOPES = ("prompt", "field", "global")
-SQLITE_MODULE = "sqlite3"
+
+# SQL module and regex configuration
+SQLITE_MODULE_NAME = "sqlite3"
+REGEX_FLAGS_CONFIG = {"IGNORECASE": re.IGNORECASE, "DOTALL": re.DOTALL}
 
 
 class RuleSummary(TypedDict):
     """Structured summary for a single rule application."""
 
     count: int
+
+
+@dataclass(frozen=True)
+class PayloadExtractionResult:
+    """Result of extracting payload data from a raw event."""
+
+    payload: dict[str, Any]
+    success: bool = True
+    error_message: str | None = None
 
 
 @dataclass(frozen=True)
@@ -51,6 +67,9 @@ class RedactionRule:
     pattern: str
     options: RuleOptions = field(default_factory=RuleOptions)
     _compiled: re.Pattern[str] | None = field(
+        default=None, init=False, repr=False, compare=False
+    )
+    _fingerprint: str | None = field(
         default=None, init=False, repr=False, compare=False
     )
 
@@ -116,6 +135,25 @@ class RedactionRule:
         """Return True when the regex dot matches newlines."""
         return self.options.dotall
 
+    @property
+    def fingerprint(self) -> str:
+        """Stable fingerprint for deduplication of rule applications."""
+
+        if self._fingerprint is None:
+            payload = {
+                "id": self.id,
+                "type": self.type,
+                "pattern": self.pattern,
+                "scope": self.scope,
+                "replacement": self.replacement,
+                "ignore_case": self.ignore_case,
+                "dotall": self.dotall,
+            }
+            serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+            digest = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+            object.__setattr__(self, "_fingerprint", digest)
+        return cast(str, self._fingerprint)
+
 
 def load_rules(path: Path | str) -> list[RedactionRule]:
     """Load rules from a YAML or JSON file.
@@ -136,6 +174,14 @@ def load_rules(path: Path | str) -> list[RedactionRule]:
     rules = [_parse_rule(entry, source=str(rules_path)) for entry in raw_rules]
     _enforce_unique_ids(rules, source=str(rules_path))
     return rules
+
+
+def _update_rule_summary(
+    summary: dict[str, RuleSummary], rule_id: str, count: int
+) -> None:
+    """Update summary with rule application count if non-zero."""
+    if count:
+        summary[rule_id] = {"count": count}
 
 
 def apply_rules(
@@ -159,8 +205,7 @@ def apply_rules(
         else:
             result, count = _apply_marker_rule(result, rule)
 
-        if count:
-            summary[rule.id] = {"count": count}
+        _update_rule_summary(summary, rule.id, count)
 
     return result, summary
 
@@ -172,7 +217,7 @@ def load_rules_from_db(
     """Load rules from the database (sqlite or Postgres)."""
 
     query = """
-        SELECT id, type, pattern, scope, replacement_text, enabled, reason, actor
+        SELECT id, type, pattern, scope, replacement_text, rule_fingerprint, enabled, reason, actor
         FROM redaction_rules
         WHERE (? = 1 OR enabled = 1)
         ORDER BY id
@@ -187,6 +232,7 @@ def load_rules_from_db(
             pattern,
             scope,
             replacement_text,
+            rule_fingerprint,
             enabled,
             reason,
             actor,
@@ -206,6 +252,8 @@ def load_rules_from_db(
                 options=options,
             )
         )
+        if rules[-1]._fingerprint is None:  # pylint: disable=protected-access
+            object.__setattr__(rules[-1], "_fingerprint", str(rule_fingerprint))
     return rules
 
 
@@ -220,7 +268,8 @@ def sync_rules_to_db(conn: Any, rules: Sequence[RedactionRule]) -> None:
             """
             UPDATE redaction_rules
             SET type = ?, pattern = ?, scope = ?, replacement_text = ?,
-                enabled = ?, reason = ?, actor = ?, updated_at = CURRENT_TIMESTAMP
+                rule_fingerprint = ?, enabled = ?, reason = ?, actor = ?,
+                updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
             """,
             (
@@ -228,6 +277,7 @@ def sync_rules_to_db(conn: Any, rules: Sequence[RedactionRule]) -> None:
                 rule.pattern,
                 rule.scope,
                 rule.effective_replacement,
+                rule.fingerprint,
                 1 if rule.enabled else 0,
                 rule.reason,
                 rule.actor,
@@ -239,8 +289,9 @@ def sync_rules_to_db(conn: Any, rules: Sequence[RedactionRule]) -> None:
                 conn,
                 """
                 INSERT INTO redaction_rules (
-                    id, type, pattern, scope, replacement_text, enabled, reason, actor
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    id, type, pattern, scope, replacement_text,
+                    rule_fingerprint, enabled, reason, actor
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     rule.id,
@@ -248,11 +299,21 @@ def sync_rules_to_db(conn: Any, rules: Sequence[RedactionRule]) -> None:
                     rule.pattern,
                     rule.scope,
                     rule.effective_replacement,
+                    rule.fingerprint,
                     1 if rule.enabled else 0,
                     rule.reason,
                     rule.actor,
                 ),
             )
+        _execute(
+            conn,
+            """
+            UPDATE redactions
+            SET active = 0, updated_at = CURRENT_TIMESTAMP
+            WHERE rule_id = ? AND rule_fingerprint != ?
+            """,
+            (rule.id, rule.fingerprint),
+        )
         _execute(
             conn,
             """
@@ -377,7 +438,7 @@ def _prepare_query(conn: Any, query: str) -> str:
     """Convert sqlite-style ? placeholders to %s when needed."""
 
     module_name = conn.__class__.__module__
-    if module_name.startswith(SQLITE_MODULE):
+    if module_name.startswith(SQLITE_MODULE_NAME):
         return query
     return query.replace("?", "%s")
 

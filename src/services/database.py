@@ -30,11 +30,17 @@ CREATE TABLE IF NOT EXISTS sessions (
     file_id INTEGER NOT NULL UNIQUE REFERENCES files(id) ON DELETE CASCADE,
     session_id TEXT,
     session_timestamp TEXT,
+    raw_json TEXT
+);
+
+CREATE TABLE IF NOT EXISTS session_context (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL UNIQUE REFERENCES sessions(id) ON DELETE CASCADE,
     cwd TEXT,
     approval_policy TEXT,
     sandbox_mode TEXT,
     network_access TEXT,
-    raw_json TEXT
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS prompts (
@@ -56,6 +62,7 @@ CREATE TABLE IF NOT EXISTS redaction_rules (
     scope TEXT NOT NULL DEFAULT 'prompt'
         CHECK (scope IN ('prompt', 'field', 'global')),
     replacement_text TEXT NOT NULL,
+    rule_fingerprint TEXT NOT NULL,
     enabled INTEGER NOT NULL DEFAULT 1,
     reason TEXT,
     actor TEXT,
@@ -65,21 +72,30 @@ CREATE TABLE IF NOT EXISTS redaction_rules (
 
 CREATE TABLE IF NOT EXISTS redactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id INTEGER REFERENCES files(id) ON DELETE CASCADE,
     prompt_id INTEGER REFERENCES prompts(id) ON DELETE CASCADE,
     rule_id TEXT REFERENCES redaction_rules(id) ON DELETE SET NULL,
-    scope TEXT NOT NULL DEFAULT 'prompt'
-        CHECK (scope IN ('prompt', 'field', 'global')),
+    rule_fingerprint TEXT NOT NULL,
     field_path TEXT,
-    replacement_text TEXT NOT NULL,
     reason TEXT,
     actor TEXT,
     active INTEGER NOT NULL DEFAULT 1,
+    session_file_path TEXT,
+    applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_redactions_prompt_scope
-    ON redactions(prompt_id, scope);
+CREATE INDEX IF NOT EXISTS idx_redactions_prompt
+    ON redactions(prompt_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_redactions_application
+    ON redactions(
+        file_id,
+        prompt_id,
+        field_path,
+        rule_id,
+        rule_fingerprint
+    );
 
 CREATE TABLE IF NOT EXISTS token_messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -98,10 +114,6 @@ CREATE TABLE IF NOT EXISTS turn_context_messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     prompt_id INTEGER NOT NULL REFERENCES prompts(id) ON DELETE CASCADE,
     timestamp TEXT,
-    cwd TEXT,
-    approval_policy TEXT,
-    sandbox_mode TEXT,
-    network_access TEXT,
     writable_roots TEXT,
     raw_json TEXT
 );
@@ -164,6 +176,136 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     """Apply base schema if tables do not exist."""
 
     conn.executescript(SCHEMA)
+    # Run migration to normalize schema if needed
+    _migrate_normalize_schema(conn)
+
+
+def _migrate_normalize_schema(conn: sqlite3.Connection) -> None:
+    """Migrate databases to normalized schema.
+
+    Handles:
+    - Creating session_context table from sessions columns
+    - Removing redundant columns from turn_context_messages and redactions
+    - Updating unique index on redactions
+    """
+
+    cursor = conn.cursor()
+
+    # Check if session_context table exists; if not, run migration
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='session_context'"
+    )
+    if not cursor.fetchone():
+        # Migrate session context data
+        try:
+            # Create session_context from sessions data
+            cursor.execute(
+                """
+                INSERT INTO session_context (session_id, cwd, approval_policy, 
+                                              sandbox_mode, network_access)
+                SELECT id, cwd, approval_policy, sandbox_mode, network_access 
+                FROM sessions
+            """
+            )
+
+            # Simplify turn_context_messages (drop redundant columns if they exist)
+            cursor.execute("PRAGMA table_info(turn_context_messages)")
+            columns = {row[1] for row in cursor.fetchall()}
+            if "cwd" in columns:
+                # Recreate table without redundant columns
+                cursor.execute(
+                    """
+                    CREATE TABLE turn_context_messages_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        prompt_id INTEGER NOT NULL REFERENCES prompts(id) 
+                            ON DELETE CASCADE,
+                        timestamp TEXT,
+                        writable_roots TEXT,
+                        raw_json TEXT
+                    )
+                """
+                )
+                cursor.execute(
+                    """
+                    INSERT INTO turn_context_messages_new 
+                    SELECT id, prompt_id, timestamp, writable_roots, raw_json 
+                    FROM turn_context_messages
+                """
+                )
+                cursor.execute("DROP TABLE turn_context_messages")
+                cursor.execute(
+                    """
+                    ALTER TABLE turn_context_messages_new 
+                    RENAME TO turn_context_messages
+                """
+                )
+
+            # Simplify redactions table (drop scope and replacement_text)
+            cursor.execute("PRAGMA table_info(redactions)")
+            columns = {row[1] for row in cursor.fetchall()}
+            if "scope" in columns:
+                # Recreate redactions without scope and replacement_text
+                cursor.execute(
+                    """
+                    CREATE TABLE redactions_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        file_id INTEGER REFERENCES files(id) ON DELETE CASCADE,
+                        prompt_id INTEGER REFERENCES prompts(id) 
+                            ON DELETE CASCADE,
+                        rule_id TEXT REFERENCES redaction_rules(id) 
+                            ON DELETE SET NULL,
+                        rule_fingerprint TEXT NOT NULL,
+                        field_path TEXT,
+                        reason TEXT,
+                        actor TEXT,
+                        active INTEGER NOT NULL DEFAULT 1,
+                        session_file_path TEXT,
+                        applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TEXT
+                    )
+                """
+                )
+                cursor.execute(
+                    """
+                    INSERT INTO redactions_new 
+                    SELECT id, file_id, prompt_id, rule_id, rule_fingerprint, 
+                           field_path, reason, actor, active, session_file_path,
+                           applied_at, created_at, updated_at 
+                    FROM redactions
+                """
+                )
+                cursor.execute("DROP TABLE redactions")
+                cursor.execute(
+                    """
+                    ALTER TABLE redactions_new RENAME TO redactions
+                """
+                )
+                cursor.execute(
+                    """
+                    CREATE INDEX idx_redactions_prompt 
+                    ON redactions(prompt_id)
+                """
+                )
+                cursor.execute(
+                    """
+                    CREATE UNIQUE INDEX uniq_redactions_application
+                    ON redactions(
+                        file_id,
+                        prompt_id,
+                        field_path,
+                        rule_id,
+                        rule_fingerprint
+                    )
+                """
+                )
+
+            conn.commit()
+        except sqlite3.OperationalError:
+            # Migration already applied or schema structure differs
+            conn.rollback()
+        finally:
+            cursor.close()
 
 
 def get_connection_for_config(db_config: DatabaseConfig) -> Any:
