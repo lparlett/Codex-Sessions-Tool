@@ -1,4 +1,4 @@
-﻿"""Tests for db_utils and event_handlers helpers (AI-assisted by Codex GPT-5)."""
+"""Tests for db_utils and event_handlers helpers (AI-assisted by Codex GPT-5)."""
 
 # pylint: disable=import-error
 
@@ -236,7 +236,11 @@ def test_parse_and_extract_helpers() -> None:
 
 def test_parse_prompt_message_handles_state_resets() -> None:
     """Ensure open tabs parsing stops on blanks or new headers."""
-    message = "## Open tabs:\n- tab1\n\n## My request for Codex:\nLine1\n## Other header:\nIgnored\n"
+    message = (
+        "## Open tabs:\n- tab1\n\n"
+        "## My request for Codex:\nLine1\n"
+        "## Other header:\nIgnored\n"
+    )
     active_file, open_tabs, my_request = parse_prompt_message(message)
     TC.assertIsNone(active_file)
     open_tabs_value = open_tabs or ""

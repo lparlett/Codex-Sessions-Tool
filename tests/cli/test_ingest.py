@@ -265,7 +265,7 @@ def test_ingest_single_session_rolls_back_on_failure(
     session_file = tmp_path / "bad.jsonl"
     session_file.write_text('{"type": "event_msg", "payload": {}}', encoding="utf-8")
 
-    def _raise(*_args: Any, **_kwargs: Any) -> None:
+    def _raise(*_args: Any, **_kwargs: Any) -> None:  # pylint: disable=unused-argument
         raise RuntimeError("boom")
 
     monkeypatch.setattr(ingest.SessionIngester, "process_session", _raise)
@@ -292,9 +292,10 @@ def test_ingest_session_file_rollback_on_db_error(
             super().__init__(*args, **kwargs)
             self.executed = False
 
-        def execute(
-            self, *args: Any, **kwargs: Any
-        ) -> Any:  # pylint: disable=unused-argument
+        def execute(self, *args: Any, **kwargs: Any) -> Any:
+            """Simulate a failing execute call for rollback testing."""
+            _ = args
+            _ = kwargs
             self.executed = True
             raise sqlite3.DatabaseError("boom")
 
@@ -357,7 +358,7 @@ def test_ingest_sessions_in_directory_propagates_non_discovery_error(
 ) -> None:
     """Unexpected errors inside ingest_sessions_in_directory should propagate."""
 
-    def _boom(_root: Path) -> list[Path]:
+    def _boom(_root: Path) -> list[Path]:  # pylint: disable=unused-argument
         raise RuntimeError("explode")
 
     monkeypatch.setattr(ingest, "iter_session_files", _boom)
@@ -380,7 +381,7 @@ def test_ingest_single_session_propagates_unexpected_errors(
     session_file = tmp_path / "session.jsonl"
     session_file.write_text("{}", encoding="utf-8")
 
-    def _boom(*_args: Any, **_kwargs: Any) -> None:
+    def _boom(*_args: Any, **_kwargs: Any) -> None:  # pylint: disable=unused-argument
         raise RuntimeError("explode")
 
     monkeypatch.setattr(ingest, "load_session_events", _boom)

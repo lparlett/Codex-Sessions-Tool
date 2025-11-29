@@ -1,4 +1,4 @@
-﻿"""Tests for parser interface definitions (AI-assisted by Codex GPT-5)."""
+"""Tests for parser interface definitions (AI-assisted by Codex GPT-5)."""
 
 # pylint: disable=import-error,too-few-public-methods
 
@@ -95,6 +95,8 @@ def test_ilogparser_requires_abstracts() -> None:
     """Instantiating ILogParser without implementations should fail."""
 
     class PartialParser(ILogParser):  # pylint: disable=abstract-method
+        """Partial parser stub lacking full implementation."""
+
         @property
         def agent_type(self) -> str:  # pragma: no cover - abstract enforcement
             return "partial"

@@ -1,12 +1,14 @@
-﻿# pylint: disable=import-error
+# pylint: disable=import-error
+"""Tests for configuration loading and validation."""
+
+import importlib
+import importlib.util
 import os
+import sys
 import textwrap
 import unittest
 from pathlib import Path
 from typing import Any
-import importlib
-import importlib.util
-import sys
 
 import pytest
 
@@ -537,10 +539,14 @@ def test_toml_fallback_to_tomli(monkeypatch: Any) -> None:
         TC.fail("Failed to load config module spec for fallback test.")
 
     class _TomliStub:  # pylint: disable=too-few-public-methods
-        class TOMLDecodeError(Exception): ...
+        """Minimal tomli stub for import fallback."""
+
+        class TOMLDecodeError(Exception):
+            """Placeholder TOML decode error."""
 
         @staticmethod
         def loads(_text: str) -> dict[str, Any]:
+            """Return empty dict for stubbed toml loads."""
             return {}
 
     def _fake_import(name: str) -> Any:

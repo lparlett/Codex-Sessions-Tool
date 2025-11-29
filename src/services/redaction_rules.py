@@ -20,6 +20,7 @@ DEFAULT_REPLACEMENT = "<REDACTED>"
 DEFAULT_RULE_PATH = Path("user/redactions.yml")
 ALLOWED_TYPES = ("regex", "marker", "literal")
 ALLOWED_SCOPES = ("prompt", "field", "global")
+SQLITE_MODULE = "sqlite3"
 
 
 class RuleSummary(TypedDict):
@@ -82,30 +83,37 @@ class RedactionRule:
 
     @property
     def scope(self) -> str:
+        """Return the rule scope."""
         return self.options.scope
 
     @property
     def replacement(self) -> str | None:
+        """Return the configured replacement text."""
         return self.options.replacement
 
     @property
     def enabled(self) -> bool:
+        """Return True when the rule is enabled."""
         return self.options.enabled
 
     @property
     def reason(self) -> str | None:
+        """Return the provenance reason, if any."""
         return self.options.reason
 
     @property
     def actor(self) -> str | None:
+        """Return the actor metadata, if any."""
         return self.options.actor
 
     @property
     def ignore_case(self) -> bool:
+        """Return True when the regex is case-insensitive."""
         return self.options.ignore_case
 
     @property
     def dotall(self) -> bool:
+        """Return True when the regex dot matches newlines."""
         return self.options.dotall
 
 
@@ -157,6 +165,143 @@ def apply_rules(
     return result, summary
 
 
+# pylint: disable=too-many-locals
+def load_rules_from_db(
+    conn: Any, *, include_disabled: bool = False
+) -> list[RedactionRule]:
+    """Load rules from the database (sqlite or Postgres)."""
+
+    query = """
+        SELECT id, type, pattern, scope, replacement_text, enabled, reason, actor
+        FROM redaction_rules
+        WHERE (? = 1 OR enabled = 1)
+        ORDER BY id
+    """
+    cursor = _execute(conn, query, (1 if include_disabled else 0,))
+    rows = cursor.fetchall()
+    rules: list[RedactionRule] = []
+    for row in rows:
+        (
+            rule_id,
+            rule_type,
+            pattern,
+            scope,
+            replacement_text,
+            enabled,
+            reason,
+            actor,
+        ) = row
+        options = RuleOptions(
+            scope=str(scope),
+            replacement=str(replacement_text),
+            enabled=bool(enabled),
+            reason=_optional_str(reason),
+            actor=_optional_str(actor),
+        )
+        rules.append(
+            RedactionRule(
+                id=str(rule_id),
+                type=str(rule_type),
+                pattern=str(pattern),
+                options=options,
+            )
+        )
+    return rules
+
+
+def sync_rules_to_db(conn: Any, rules: Sequence[RedactionRule]) -> None:
+    """Upsert rules into the database and soft-disable missing ones."""
+
+    active_ids: set[str] = set()
+    for rule in rules:
+        active_ids.add(rule.id)
+        updated = _execute(
+            conn,
+            """
+            UPDATE redaction_rules
+            SET type = ?, pattern = ?, scope = ?, replacement_text = ?,
+                enabled = ?, reason = ?, actor = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (
+                rule.type,
+                rule.pattern,
+                rule.scope,
+                rule.effective_replacement,
+                1 if rule.enabled else 0,
+                rule.reason,
+                rule.actor,
+                rule.id,
+            ),
+        )
+        if updated.rowcount == 0:
+            _execute(
+                conn,
+                """
+                INSERT INTO redaction_rules (
+                    id, type, pattern, scope, replacement_text, enabled, reason, actor
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    rule.id,
+                    rule.type,
+                    rule.pattern,
+                    rule.scope,
+                    rule.effective_replacement,
+                    1 if rule.enabled else 0,
+                    rule.reason,
+                    rule.actor,
+                ),
+            )
+        _execute(
+            conn,
+            """
+            UPDATE redactions
+            SET active = 1, updated_at = CURRENT_TIMESTAMP
+            WHERE rule_id = ?
+            """,
+            (rule.id,),
+        )
+
+    _soft_disable_missing_rules(conn, active_ids)
+    _soft_disable_redactions_for_disabled_rules(conn)
+
+
+def write_rules(path: Path, rules: Sequence[RedactionRule]) -> None:
+    """Persist rules to YAML/JSON based on the file extension."""
+
+    serializable = [rule_to_dict(rule) for rule in rules]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.suffix.lower() in {".yml", ".yaml"}:
+        try:
+            yaml = importlib.import_module("yaml")
+        except ModuleNotFoundError as exc:  # pragma: no cover - env dependent
+            raise SystemExit(
+                "PyYAML is required to write YAML rule files. Install with "
+                "'pip install pyyaml'."
+            ) from exc
+        path.write_text(yaml.safe_dump(serializable, sort_keys=False), encoding="utf-8")
+    else:
+        path.write_text(json.dumps(serializable, indent=2), encoding="utf-8")
+
+
+def rule_to_dict(rule: RedactionRule) -> dict[str, Any]:
+    """Serialize a rule to a JSON/YAML friendly dict."""
+
+    return {
+        "id": rule.id,
+        "type": rule.type,
+        "pattern": rule.pattern,
+        "scope": rule.scope,
+        "replacement": rule.replacement,
+        "enabled": rule.enabled,
+        "reason": rule.reason,
+        "actor": rule.actor,
+        "ignore_case": rule.ignore_case,
+        "dotall": rule.dotall,
+    }
+
+
 def _apply_regex_rule(text: str, rule: RedactionRule) -> tuple[str, int]:
     count = 0
 
@@ -179,6 +324,62 @@ def _apply_marker_rule(text: str, rule: RedactionRule) -> tuple[str, int]:
 
     redacted = rule.compiled.sub(_repl, text)
     return redacted, count
+
+
+def _soft_disable_missing_rules(conn: Any, active_ids: set[str]) -> None:
+    """Soft-disable rules missing from the latest file sync."""
+
+    if not active_ids:
+        _execute(
+            conn,
+            """
+            UPDATE redaction_rules
+            SET enabled = 0, updated_at = CURRENT_TIMESTAMP
+            """,
+        )
+        return
+
+    placeholders = ",".join(["?"] * len(active_ids))
+    query = f"""
+        UPDATE redaction_rules
+        SET enabled = 0, updated_at = CURRENT_TIMESTAMP
+        WHERE id NOT IN ({placeholders})
+    """  # nosec B608
+    _execute(conn, query, tuple(active_ids))
+
+
+def _soft_disable_redactions_for_disabled_rules(conn: Any) -> None:
+    """Mark redaction rows inactive when their rule is disabled."""
+
+    _execute(
+        conn,
+        """
+        UPDATE redactions
+        SET active = 0, updated_at = CURRENT_TIMESTAMP
+        WHERE rule_id IN (
+            SELECT id FROM redaction_rules WHERE enabled = 0
+        )
+    """,
+    )
+
+
+def _execute(conn: Any, query: str, params: Iterable[Any] | None = None) -> Any:
+    """Execute a query with placeholder adaptation for sqlite and psycopg2."""
+
+    params = tuple(params or ())
+    prepared = _prepare_query(conn, query)
+    cursor = conn.cursor()
+    cursor.execute(prepared, params)
+    return cursor
+
+
+def _prepare_query(conn: Any, query: str) -> str:
+    """Convert sqlite-style ? placeholders to %s when needed."""
+
+    module_name = conn.__class__.__module__
+    if module_name.startswith(SQLITE_MODULE):
+        return query
+    return query.replace("?", "%s")
 
 
 def _load_raw(path: Path) -> list[dict[str, Any]]:

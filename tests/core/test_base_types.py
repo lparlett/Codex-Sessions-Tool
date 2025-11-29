@@ -27,6 +27,8 @@ def test_agent_config_requires_validate() -> None:
     """AgentConfig subclasses must implement abstract methods."""
 
     class DummyConfig(AgentConfig):
+        """Stub AgentConfig for abstract checks."""
+
         def __init__(self) -> None:
             super().__init__("dummy", Path.cwd(), features=None)
 
@@ -37,6 +39,8 @@ def test_agent_config_assigns_fields() -> None:
     """AgentConfig should persist constructor arguments."""
 
     class MinimalConfig(AgentConfig):
+        """Concrete AgentConfig for serialization tests."""
+
         def __init__(self) -> None:
             super().__init__(
                 agent_type="mini",

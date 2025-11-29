@@ -12,6 +12,10 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+from typing import Any
+
+from src.services.config import DatabaseConfig
+from src.services import postgres_schema
 
 
 SCHEMA = """
@@ -45,15 +49,31 @@ CREATE TABLE IF NOT EXISTS prompts (
     raw_json TEXT
 );
 
+CREATE TABLE IF NOT EXISTS redaction_rules (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL CHECK (type IN ('regex', 'marker', 'literal')),
+    pattern TEXT NOT NULL,
+    scope TEXT NOT NULL DEFAULT 'prompt'
+        CHECK (scope IN ('prompt', 'field', 'global')),
+    replacement_text TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    reason TEXT,
+    actor TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS redactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     prompt_id INTEGER REFERENCES prompts(id) ON DELETE CASCADE,
+    rule_id TEXT REFERENCES redaction_rules(id) ON DELETE SET NULL,
     scope TEXT NOT NULL DEFAULT 'prompt'
         CHECK (scope IN ('prompt', 'field', 'global')),
     field_path TEXT,
     replacement_text TEXT NOT NULL,
     reason TEXT,
     actor TEXT,
+    active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT
 );
@@ -144,3 +164,35 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     """Apply base schema if tables do not exist."""
 
     conn.executescript(SCHEMA)
+
+
+def get_connection_for_config(db_config: DatabaseConfig) -> Any:
+    """Return a connection for sqlite or Postgres and ensure schema exists."""
+
+    if db_config.backend == "sqlite":
+        sqlite_conn = get_connection(db_config.sqlite_path)
+        ensure_schema(sqlite_conn)
+        return sqlite_conn
+
+    try:
+        import psycopg2  # pylint: disable=import-outside-toplevel
+        from psycopg2.extensions import (  # pylint: disable=import-outside-toplevel
+            connection as PgConnection,
+        )
+    except ModuleNotFoundError as exc:  # pragma: no cover - env dependent
+        raise RuntimeError(
+            "psycopg2-binary is required for Postgres connections. "
+            "Install the 'postgres' optional dependency."
+        ) from exc
+
+    if not db_config.postgres_dsn:
+        raise RuntimeError("postgres_dsn is required for Postgres backend.")
+
+    conn: PgConnection = psycopg2.connect(db_config.postgres_dsn)
+    cursor = conn.cursor()
+    try:
+        cursor.execute(postgres_schema.POSTGRES_SCHEMA)
+    finally:
+        cursor.close()
+    conn.commit()
+    return conn

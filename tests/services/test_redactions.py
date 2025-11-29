@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import sqlite3
 import unittest
-import types
 from pathlib import Path
 from typing import cast
 
@@ -64,6 +63,7 @@ def test_create_and_get_redaction(tmp_path: Path) -> None:
         conn,
         RedactionCreate(
             prompt_id=prompt_id,
+            rule_id=None,
             scope="prompt",
             replacement_text="[hidden]",
             reason="sensitive",
@@ -74,10 +74,12 @@ def test_create_and_get_redaction(tmp_path: Path) -> None:
     TC.assertIsNotNone(record)
     record = cast("RedactionRecord", record)
     TC.assertEqual(record.prompt_id, prompt_id)
+    TC.assertIsNone(record.rule_id)
     TC.assertEqual(record.scope, "prompt")
     TC.assertEqual(record.replacement_text, "[hidden]")
     TC.assertEqual(record.reason, "sensitive")
     TC.assertEqual(record.actor, "tester")
+    TC.assertTrue(record.active)
     conn.close()
 
 
@@ -90,6 +92,7 @@ def test_list_and_update_redaction(tmp_path: Path) -> None:
         conn,
         RedactionCreate(
             prompt_id=prompt_id,
+            rule_id=None,
             scope="field",
             field_path="message",
             replacement_text="[removed]",
@@ -128,6 +131,7 @@ def test_delete_redaction_and_validation(tmp_path: Path) -> None:
         conn,
         RedactionCreate(
             prompt_id=prompt_id,
+            rule_id=None,
             scope="prompt",
             replacement_text="[gone]",
         ),
@@ -141,6 +145,7 @@ def test_delete_redaction_and_validation(tmp_path: Path) -> None:
             conn,
             RedactionCreate(
                 prompt_id=None,
+                rule_id=None,
                 scope="invalid",
                 replacement_text="x",
             ),
@@ -150,6 +155,7 @@ def test_delete_redaction_and_validation(tmp_path: Path) -> None:
             conn,
             RedactionCreate(
                 prompt_id=None,
+                rule_id=None,
                 scope="field",
                 field_path="",
                 replacement_text="x",
@@ -160,6 +166,7 @@ def test_delete_redaction_and_validation(tmp_path: Path) -> None:
             conn,
             RedactionCreate(
                 prompt_id=None,
+                rule_id=None,
                 scope="prompt",
                 replacement_text="   ",
             ),
@@ -177,6 +184,7 @@ def test_list_and_scope_filtering(tmp_path: Path) -> None:
         conn,
         RedactionCreate(
             prompt_id=first_prompt,
+            rule_id=None,
             scope="prompt",
             replacement_text="[p1]",
         ),
@@ -185,6 +193,7 @@ def test_list_and_scope_filtering(tmp_path: Path) -> None:
         conn,
         RedactionCreate(
             prompt_id=second_prompt,
+            rule_id=None,
             scope="field",
             field_path="message",
             replacement_text="[p2]",
@@ -212,6 +221,7 @@ def test_update_redaction_no_changes(tmp_path: Path) -> None:
         conn,
         RedactionCreate(
             prompt_id=prompt_id,
+            rule_id=None,
             scope="prompt",
             replacement_text="[text]",
         ),
@@ -229,6 +239,7 @@ def test_update_redaction_requires_field_path_for_scope(tmp_path: Path) -> None:
         conn,
         RedactionCreate(
             prompt_id=prompt_id,
+            rule_id=None,
             scope="prompt",
             replacement_text="[text]",
         ),
@@ -247,6 +258,7 @@ def test_update_redaction_rejects_blank_replacement(tmp_path: Path) -> None:
         conn,
         RedactionCreate(
             prompt_id=prompt_id,
+            rule_id=None,
             scope="prompt",
             replacement_text="[text]",
         ),
@@ -274,6 +286,7 @@ def test_update_redaction_sets_prompt_and_actor(tmp_path: Path) -> None:
         conn,
         RedactionCreate(
             prompt_id=prompt_id,
+            rule_id=None,
             scope="prompt",
             replacement_text="[text]",
         ),
@@ -299,12 +312,22 @@ def test_create_redaction_raises_when_lastrowid_missing() -> None:
     class _NoRowConn:
         def __init__(self) -> None:
             self.executed: list[tuple] = []
+            self.lastrowid: int | None = None
+            self.rowcount: int = 0
 
-        def execute(self, stmt: str, params: tuple) -> types.SimpleNamespace:
+        def cursor(self) -> "_NoRowConn":
+            """Return self as cursor stub."""
+            return self
+
+        def execute(self, stmt: str, params: tuple) -> "_NoRowConn":
+            """Record executed statement and reset row metadata."""
             self.executed.append((stmt, params))
-            return types.SimpleNamespace(lastrowid=None)
+            self.lastrowid = None
+            self.rowcount = 0
+            return self
 
         def close(self) -> None:
+            """Close cursor stub."""
             return None
 
     conn = _NoRowConn()
@@ -313,6 +336,7 @@ def test_create_redaction_raises_when_lastrowid_missing() -> None:
             conn,  # type: ignore[arg-type]
             RedactionCreate(
                 prompt_id=None,
+                rule_id=None,
                 scope="prompt",
                 replacement_text="[text]",
             ),
@@ -324,10 +348,21 @@ def test_insert_prompt_raises_when_file_id_missing() -> None:
     """_insert_prompt should raise when file insert does not return an id."""
 
     class _Conn:
-        def execute(self, _stmt: str, _params: tuple) -> types.SimpleNamespace:
-            return types.SimpleNamespace(lastrowid=None)
+        def __init__(self) -> None:
+            self.lastrowid: int | None = None
+            self.rowcount: int = 0
+
+        def cursor(self) -> "_Conn":
+            """Return self as cursor stub."""
+            return self
+
+        def execute(self, _stmt: str, _params: tuple) -> "_Conn":
+            """Simulate failed insert by leaving lastrowid as None."""
+            self.lastrowid = None
+            return self
 
         def close(self) -> None:
+            """Close stub connection."""
             return None
 
     dummy = _Conn()
@@ -342,14 +377,24 @@ def test_insert_prompt_raises_when_prompt_id_missing() -> None:
     class _Conn:
         def __init__(self) -> None:
             self.calls = 0
+            self.lastrowid: int | None = None
+            self.rowcount: int = 0
 
-        def execute(self, _stmt: str, _params: tuple) -> types.SimpleNamespace:
+        def cursor(self) -> "_Conn":
+            """Return self as cursor stub."""
+            return self
+
+        def execute(self, _stmt: str, _params: tuple) -> "_Conn":
+            """Simulate first insert success then failure."""
             self.calls += 1
             if self.calls == 1:
-                return types.SimpleNamespace(lastrowid=1)
-            return types.SimpleNamespace(lastrowid=None)
+                self.lastrowid = 1
+            else:
+                self.lastrowid = None
+            return self
 
         def close(self) -> None:
+            """Close stub connection."""
             return None
 
     dummy = _Conn()
@@ -367,6 +412,7 @@ def test_create_redaction_requires_field_path_for_field_scope() -> None:
             conn,
             RedactionCreate(
                 prompt_id=None,
+                rule_id=None,
                 scope="field",
                 field_path=None,
                 replacement_text="[text]",
