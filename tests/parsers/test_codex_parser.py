@@ -252,7 +252,10 @@ def test_parse_file_invalid_timestamp_type(tmp_path: Path) -> None:
         '{"type": "session_meta", "timestamp": "2025-11-23T10:00:00+00:00",'
         ' "payload": {"id": "sid-123"}}'
     )
-    bad_event = '{"type": "event_msg", "timestamp": 123, "payload": {"type": "user_message", "message": "Hi"}}'
+    bad_event = (
+        '{"type": "event_msg", "timestamp": 123, '
+        '"payload": {"type": "user_message", "message": "Hi"}}'
+    )
     file_path = _write_lines(tmp_path, session_meta, bad_event)
     with pytest.raises(InvalidEventError):
         list(TestableCodexParser().parse_file(file_path))
@@ -315,7 +318,10 @@ def test_parse_file_invalid_payload_type(tmp_path: Path) -> None:
         '{"type": "session_meta", "timestamp": "2025-11-23T10:00:00+00:00",'
         ' "payload": {"id": "sid-123"}}'
     )
-    bad_event = '{"type": "event_msg", "timestamp": "2025-11-23T10:00:01+00:00", "payload": "invalid"}'
+    bad_event = (
+        '{"type": "event_msg", "timestamp": "2025-11-23T10:00:01+00:00", '
+        '"payload": "invalid"}'
+    )
     file_path = _write_lines(tmp_path, session_meta, bad_event)
     with pytest.raises(InvalidEventError):
         list(TestableCodexParser().parse_file(file_path))
