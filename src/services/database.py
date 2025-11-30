@@ -316,6 +316,9 @@ def get_connection_for_config(db_config: DatabaseConfig) -> Any:
         ensure_schema(sqlite_conn)
         return sqlite_conn
 
+    if not db_config.postgres_dsn:
+        raise RuntimeError("postgres_dsn is required for Postgres backend.")
+
     try:
         import psycopg2  # pylint: disable=import-outside-toplevel
         from psycopg2.extensions import (  # pylint: disable=import-outside-toplevel
@@ -326,9 +329,6 @@ def get_connection_for_config(db_config: DatabaseConfig) -> Any:
             "psycopg2-binary is required for Postgres connections. "
             "Install the 'postgres' optional dependency."
         ) from exc
-
-    if not db_config.postgres_dsn:
-        raise RuntimeError("postgres_dsn is required for Postgres backend.")
 
     conn: PgConnection = psycopg2.connect(db_config.postgres_dsn)
     cursor = conn.cursor()

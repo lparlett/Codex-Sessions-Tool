@@ -27,6 +27,8 @@ from src.services.redaction_rules import (
     write_rules,
 )
 
+__all__: list[str] = ["main"]
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Construct the top-level parser."""

@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 import importlib
 import os
 from pathlib import Path
+from typing import Any
 
 try:
     _toml_module = importlib.import_module("tomllib")
@@ -95,7 +96,7 @@ def load_config(config_path: Path | None = None) -> SessionsConfig:
     )
 
 
-def _load_batch_size(ingest_config: dict | None) -> int:
+def _load_batch_size(ingest_config: dict[str, Any] | None) -> int:
     """Return validated ingest batch size."""
 
     batch_size = 1000
@@ -111,7 +112,7 @@ def _load_batch_size(ingest_config: dict | None) -> int:
 
 
 def _load_database_config(
-    ingest_config: dict | None, database_table: dict | None
+    ingest_config: dict[str, Any] | None, database_table: dict[str, Any] | None
 ) -> DatabaseConfig:
     """Load database configuration with sensible defaults."""
 
@@ -135,7 +136,7 @@ def _load_database_config(
 
 
 def _determine_sqlite_path(
-    ingest_config: dict | None, database_table: dict | None
+    ingest_config: dict[str, Any] | None, database_table: dict[str, Any] | None
 ) -> tuple[Path, bool]:
     """Return sqlite path and whether the user supplied it."""
 
@@ -158,7 +159,7 @@ def _determine_sqlite_path(
 
 
 def _determine_backend(
-    database_table: dict | None,
+    database_table: dict[str, Any] | None,
 ) -> tuple[str, str | None]:
     """Return backend and optional Postgres DSN from the database table."""
 
@@ -186,7 +187,7 @@ def _validate_backend(backend: str, postgres_dsn: str | None) -> None:
         raise ConfigError("database.postgres_dsn is required when backend=postgres.")
 
 
-def _load_outputs_config(outputs_table: dict | None) -> OutputPaths:
+def _load_outputs_config(outputs_table: dict[str, Any] | None) -> OutputPaths:
     """Load and validate output directory configuration."""
 
     reports_dir = Path("reports")

@@ -7,7 +7,7 @@ from __future__ import annotations
 import sqlite3
 import unittest
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -255,15 +255,17 @@ def test_create_redaction_raises_when_lastrowid_missing() -> None:
 
     class _NoRowConn:
         def __init__(self) -> None:
-            self.executed: list[tuple] = []
+            self.executed: list[tuple[Any, ...]] = []
             self.lastrowid: int | None = None
             self.rowcount: int = 0
 
-        def cursor(self) -> "_NoRowConn":
+        def cursor(self) -> _NoRowConn:  # pylint: disable=undefined-variable
             """Return self as cursor stub."""
             return self
 
-        def execute(self, stmt: str, params: tuple) -> "_NoRowConn":
+        def execute(
+            self, stmt: str, params: tuple[Any, ...]
+        ) -> _NoRowConn:  # pylint: disable=undefined-variable
             """Record executed statement and reset row metadata."""
             self.executed.append((stmt, params))
             self.lastrowid = None
@@ -296,11 +298,13 @@ def test_insert_prompt_raises_when_file_id_missing() -> None:
             self.lastrowid: int | None = None
             self.rowcount: int = 0
 
-        def cursor(self) -> "_Conn":
+        def cursor(self) -> _Conn:  # pylint: disable=undefined-variable
             """Return self as cursor stub."""
             return self
 
-        def execute(self, _stmt: str, _params: tuple) -> "_Conn":
+        def execute(
+            self, _stmt: str, _params: tuple[Any, ...]
+        ) -> _Conn:  # pylint: disable=undefined-variable
             """Simulate failed insert by leaving lastrowid as None."""
             self.lastrowid = None
             return self
@@ -324,11 +328,13 @@ def test_insert_prompt_raises_when_prompt_id_missing() -> None:
             self.lastrowid: int | None = None
             self.rowcount: int = 0
 
-        def cursor(self) -> "_Conn":
+        def cursor(self) -> _Conn:  # pylint: disable=undefined-variable
             """Return self as cursor stub."""
             return self
 
-        def execute(self, _stmt: str, _params: tuple) -> "_Conn":
+        def execute(
+            self, _stmt: str, _params: tuple[Any, ...]
+        ) -> _Conn:  # pylint: disable=undefined-variable
             """Simulate first insert success then failure."""
             self.calls += 1
             if self.calls == 1:

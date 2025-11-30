@@ -20,6 +20,8 @@ from src.parsers.session_parser import (
 )
 from src.services.config import ConfigError, SessionsConfig, load_config
 
+__all__: list[str] = ["SessionDiscoveryError", "main"]
+
 
 def shorten(text: str, limit: int = 120) -> str:
     """Return text truncated to ``limit`` characters with ellipsis."""

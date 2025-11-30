@@ -35,6 +35,8 @@ from src.services.redactions import (
     insert_redaction_application,
 )
 
+__all__: list[str] = ["main"]
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser for the export CLI."""

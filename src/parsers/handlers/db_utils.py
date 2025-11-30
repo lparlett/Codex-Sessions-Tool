@@ -91,7 +91,7 @@ def extract_tag_value(text: str, tag: str) -> str | None:
     return text[start_index:end_index].strip()
 
 
-def extract_session_details(prelude: list[dict]) -> dict[str, Any]:
+def extract_session_details(prelude: list[dict[str, Any]]) -> dict[str, Any]:
     """Derive session metadata from the prelude events."""
 
     details: dict[str, Any] = {
@@ -122,7 +122,7 @@ def extract_session_details(prelude: list[dict]) -> dict[str, Any]:
     return details
 
 
-def _extract_env_context(payload: dict, details: dict[str, Any]) -> None:
+def _extract_env_context(payload: dict[str, Any], details: dict[str, Any]) -> None:
     """Populate environment details from message payload."""
 
     content = payload.get("content")
@@ -146,7 +146,7 @@ def _extract_env_context(payload: dict, details: dict[str, Any]) -> None:
         )
 
 
-def extract_token_fields(payload: dict) -> dict[str, Any]:
+def extract_token_fields(payload: dict[str, Any]) -> dict[str, Any]:
     """Normalize token count payload for insertion."""
 
     primary = (
@@ -170,7 +170,7 @@ def extract_token_fields(payload: dict) -> dict[str, Any]:
     }
 
 
-def extract_turn_context(payload: dict) -> dict[str, Any]:
+def extract_turn_context(payload: dict[str, Any]) -> dict[str, Any]:
     """Normalize turn context payload for insertion."""
 
     sandbox = payload.get("sandbox_policy", {}) if isinstance(payload, dict) else {}
@@ -258,7 +258,7 @@ class SessionInsert:
 
     conn: Any
     file_id: int
-    prelude: list[dict]
+    prelude: list[dict[str, Any]]
 
 
 @dataclass
@@ -281,8 +281,8 @@ class EventInsert:
     file_id: int
     prompt_id: int
     timestamp: str | None
-    payload: dict
-    raw: dict
+    payload: dict[str, Any]
+    raw: dict[str, Any]
 
 
 def insert_event(ctx: EventInsert) -> None:
@@ -334,8 +334,8 @@ class FunctionCallOutputUpdate:
     conn: Any
     row_id: int
     timestamp: str | None
-    payload: dict
-    raw: dict
+    payload: dict[str, Any]
+    raw: dict[str, Any]
 
 
 def insert_session(context: SessionInsert) -> None:

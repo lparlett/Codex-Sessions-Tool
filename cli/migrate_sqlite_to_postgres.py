@@ -17,6 +17,8 @@ from typing import Any, Iterable, Callable
 from src.services.config import ConfigError, SessionsConfig, load_config
 from src.services.postgres_schema import POSTGRES_SCHEMA, TABLES_IN_COPY_ORDER
 
+__all__: list[str] = ["sqlite3", "main"]
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the migration CLI parser."""

@@ -268,7 +268,7 @@ class EventProcessor:
     )
     tracker: FunctionCallTracker = field(default_factory=FunctionCallTracker)
 
-    def process(self, events: Iterable[dict]) -> dict[str, int]:
+    def process(self, events: Iterable[dict[str, Any]]) -> dict[str, int]:
         """Process all events for the current prompt."""
 
         for event in events:
@@ -298,15 +298,15 @@ def _process_events(
     conn: Connection,
     file_id: int,
     prompt_id: int,
-    events: Iterable[dict],
+    events: Iterable[dict[str, Any]],
 ) -> dict[str, int]:
     """Process events for a prompt and populate child tables.
 
     Delegates to EventProcessor which:
-    - Dispatches each event to the appropriate handler (event_msg, turn_context,
-      response_item).
-    - Tracks function call state across the entire prompt via FunctionCallTracker.
-    - Updates counts for each message type encountered.
+        - Dispatches each event to the appropriate handler (event_msg, turn_context,
+          response_item).
+        - Tracks function call state across the entire prompt via FunctionCallTracker.
+        - Updates counts for each message type encountered.
 
     Returns:
         Dictionary mapping message type names to their occurrence counts.
@@ -378,7 +378,7 @@ def _create_empty_summary(session_file: Path, file_id: int) -> SessionSummary:
     }
 
 
-def _update_summary_counts(summary: SessionSummary, counts: dict) -> None:
+def _update_summary_counts(summary: SessionSummary, counts: dict[str, int]) -> None:
     """Update summary with counts from processed events."""
     summary["prompts"] += 1
     for key in (
@@ -435,7 +435,9 @@ class SessionIngester:
         self._finalize_summary()
         return self.summary
 
-    def _store_session_data(self, prelude: list[dict], groups: list[dict]) -> None:
+    def _store_session_data(
+        self, prelude: list[dict[str, Any]], groups: list[dict[str, Any]]
+    ) -> None:
         """Store session data and process prompt groups."""
         insert_session(
             SessionInsert(
@@ -446,7 +448,7 @@ class SessionIngester:
         )
         self._process_groups(groups)
 
-    def _process_groups(self, groups: list[dict]) -> None:
+    def _process_groups(self, groups: list[dict[str, Any]]) -> None:
         """Process and store each prompt group."""
         for index, group in enumerate(groups, start=1):
             prompt_insert = _build_prompt_insert(
